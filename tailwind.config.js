@@ -121,7 +121,8 @@ export default {
         // so it never affects any other glyph). Global root fix for flags everywhere.
         sans: [
           'Twemoji Country Flags',
-          'Manrope',
+          'Inter Variable',
+          'Inter',
           'system-ui',
           '-apple-system',
           'BlinkMacSystemFont',
@@ -129,15 +130,22 @@ export default {
           'Roboto',
           'sans-serif',
         ],
-        display: ['Twemoji Country Flags', 'Outfit', 'Manrope', 'system-ui', 'sans-serif'],
+        display: ['Twemoji Country Flags', 'Inter Tight Variable', 'Inter Variable', 'system-ui', 'sans-serif'],
         mono: ['Twemoji Country Flags', 'IBM Plex Mono', 'ui-monospace', 'monospace'],
       },
+      // BlackBird B1: почти прямые углы во всём кабинете. Округлые классы
+      // апстрима (rounded-xl…3xl) сводятся к 4–6px, rounded-full не трогаем.
       borderRadius: {
-        bento: '24px',
-        '4xl': '32px',
+        md: '4px',
+        lg: '4px',
+        xl: '4px',
+        '2xl': '6px',
+        '3xl': '6px',
+        bento: '6px',
+        '4xl': '6px',
         // Linear design tokens
-        linear: '8px',
-        'linear-lg': '12px',
+        linear: '4px',
+        'linear-lg': '6px',
       },
       spacing: {
         bento: '16px',

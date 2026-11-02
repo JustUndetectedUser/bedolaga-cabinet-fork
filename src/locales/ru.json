@@ -8514,5 +8514,39 @@
     "subscription": {
       "untitled": "Подписка"
     }
+  },
+  "blackbird": {
+    "daysLeft_one": "день\nосталось",
+    "daysLeft_few": "дня\nосталось",
+    "daysLeft_many": "дней\nосталось",
+    "daysLeft_other": "дня\nосталось",
+    "hoursLeft_one": "час\nостался",
+    "hoursLeft_few": "часа\nосталось",
+    "hoursLeft_many": "часов\nосталось",
+    "hoursLeft_other": "часа\nосталось",
+    "kicker": {
+      "trial": "пробный период",
+      "active": "активна",
+      "expiring": "скоро закончится",
+      "expired": "закончилась",
+      "limited": "трафик закончился",
+      "paused": "на паузе",
+      "legacy": "нужен тариф"
+    },
+    "trialOffer": {
+      "kicker": "Подарок новым пользователям",
+      "days_one": "день\nбесплатно",
+      "days_few": "дня\nбесплатно",
+      "days_many": "дней\nбесплатно",
+      "days_other": "дня\nбесплатно",
+      "hint": "Попробуйте самый популярный тариф целиком, без урезанных функций.",
+      "devices": "Устройства",
+      "upTo": "до {{n}}",
+      "traffic": "Трафик на период",
+      "unlimited": "без лимита",
+      "card": "Карта",
+      "noCard": "не нужна"
+    },
+    "source": "Исходный код"
   }
 }

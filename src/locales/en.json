@@ -7901,5 +7901,33 @@
     "subscription": {
       "untitled": "Subscription"
     }
+  },
+  "blackbird": {
+    "daysLeft_one": "day\nleft",
+    "daysLeft_other": "days\nleft",
+    "hoursLeft_one": "hour\nleft",
+    "hoursLeft_other": "hours\nleft",
+    "kicker": {
+      "trial": "trial",
+      "active": "active",
+      "expiring": "ending soon",
+      "expired": "expired",
+      "limited": "traffic used up",
+      "paused": "paused",
+      "legacy": "choose a plan"
+    },
+    "trialOffer": {
+      "kicker": "A gift for new users",
+      "days_one": "day\nfree",
+      "days_other": "days\nfree",
+      "hint": "Try our most popular plan in full, nothing cut down.",
+      "devices": "Devices",
+      "upTo": "up to {{n}}",
+      "traffic": "Traffic for the period",
+      "unlimited": "unlimited",
+      "card": "Card",
+      "noCard": "not needed"
+    },
+    "source": "Source code"
   }
 }

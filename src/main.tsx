@@ -32,7 +32,10 @@ import { themeColorsQueryOptions } from './api/themeColors';
 import { applyThemeColors } from './hooks/useThemeColors';
 import { readThemeColorsHint } from './utils/themeColorsHint';
 import { UI } from './config/constants';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/inter-tight';
 import './styles/globals.css';
+import './styles/blackbird.css';
 
 // Harden the global encoders against lone UTF-16 surrogates (truncated emoji in
 // backend names/remarks) BEFORE anything renders or fetches — otherwise such a

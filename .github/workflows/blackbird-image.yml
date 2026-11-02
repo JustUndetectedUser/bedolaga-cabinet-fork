@@ -1,0 +1,64 @@
+# BlackBird: образ кабинета в оформлении B1.
+#
+# Собирается из ветки blackbird и тегов bb-* и кладётся в GHCR этого
+# репозитория. Адрес репозитория попадает в сборку как VITE_SOURCE_URL —
+# это ссылка «Исходный код» в кабинете (AGPL-3.0, раздел 13).
+#
+# Теги образа: bb-<версия> для тега git (например bb-1.81.1-1), blackbird —
+# последняя сборка ветки, sha-<коммит> — каждая сборка.
+name: BlackBird image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [blackbird]
+    tags: ['bb-*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Tests
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+          npx vitest run
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=ref,event=branch
+            type=sha
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_API_URL=/api
+            VITE_APP_NAME=BlackBird
+            VITE_SOURCE_URL=${{ github.server_url }}/${{ github.repository }}

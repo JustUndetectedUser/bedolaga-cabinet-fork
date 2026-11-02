@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
+import SourceLink from './blackbird/SourceLink';
+
 interface LegalLink {
   href: string;
   labelKey: string;
@@ -36,6 +38,7 @@ export default function LegalFooter({ className = '' }: LegalFooterProps) {
           {t(link.labelKey, link.fallback)}
         </a>
       ))}
+      <SourceLink />
     </footer>
   );
 }

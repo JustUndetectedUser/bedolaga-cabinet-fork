@@ -1,0 +1,94 @@
+/*
+ * BlackBird: слой оформления «B1 Монохром» поверх стилей апстрима.
+ *
+ * Подключается в main.tsx сразу после globals.css и только переопределяет
+ * вид: разметка и логика апстрима не меняются, поэтому обновление на новую
+ * версию кабинета сводится к переносу этого файла и пары правок.
+ *
+ * Принципы B1: чёрный фон, белый текст, тонкие линии вместо карточек со
+ * свечением, почти прямые углы, без шума, стекла и цветных теней. Главная
+ * кнопка — светлая заливка (цвет акцента задаётся в теме: #F5F5F5).
+ *
+ * Файл обычный, без @layer: его подключает main.tsx, а не globals.css, и
+ * Tailwind его не обрабатывает. Он идёт в сборке после globals.css, поэтому
+ * при равной специфичности выигрывает.
+ */
+
+:root {
+  --bento-radius: 6px;
+  --bento-radius-lg: 6px;
+  --linear-radius: 4px;
+  --linear-radius-lg: 6px;
+}
+
+/* Шумовая текстура фона — не наш стиль. */
+body::before {
+  display: none;
+}
+
+/* Цифры одинаковой ширины по всему кабинету: суммы, дни и гигабайты не
+   прыгают при обновлении. */
+body {
+  font-feature-settings:
+    "tnum" 1,
+    "cv11" 1;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+/* В светлой теме главная кнопка — тёмная: светлый акцент на светлом фоне
+   не читается. Цвет текста темы и есть «тёмный» B1. */
+.light {
+  --color-accent-400: var(--color-champagne-900) !important;
+  --color-accent-500: var(--color-champagne-950) !important;
+  --color-accent-600: var(--color-champagne-900) !important;
+  --color-on-accent: var(--color-champagne-50) !important;
+}
+
+.bento-card,
+.card {
+  box-shadow: none;
+  animation: none;
+}
+
+.bento-card-hover:hover,
+.bento-card-glow:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.bento-card-hover::after {
+  display: none;
+}
+
+.card-glow:hover {
+  box-shadow: none;
+}
+
+.btn {
+  font-weight: 600;
+}
+
+.btn-primary,
+.btn-primary:hover {
+  box-shadow: none;
+}
+
+/* Стекло на десктопе — размытие под шапкой. В B1 шапка просто чёрная с
+   линией снизу. */
+@media (min-width: 1024px) {
+  .glass {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: rgb(var(--color-dark-950));
+  }
+}
+
+.glow-accent,
+.glow-success {
+  box-shadow: none;
+}

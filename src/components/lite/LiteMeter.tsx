@@ -7,6 +7,11 @@ interface LiteMeterProps {
   usedGb: number;
   limitGb: number;
   usedPercent: number;
+  /**
+   * BlackBird B1: крупные цифры над шкалой («12,4 / 75 ГБ») — для плитки на
+   * главной. По умолчанию — строка под шкалой, как в апстриме.
+   */
+  large?: boolean;
 }
 
 /**
@@ -17,7 +22,7 @@ interface LiteMeterProps {
  * виджет. Цифры — табличными знаками, иначе значение прыгает по ширине при
  * каждом обновлении и полоса «дышит».
  */
-export function LiteMeter({ usedGb, limitGb, usedPercent }: LiteMeterProps) {
+export function LiteMeter({ usedGb, limitGb, usedPercent, large = false }: LiteMeterProps) {
   const { t } = useTranslation();
 
   if (!limitGb || limitGb <= 0) {
@@ -31,10 +36,34 @@ export function LiteMeter({ usedGb, limitGb, usedPercent }: LiteMeterProps) {
   const width = liteMeterWidth(usedPercent);
   const color = liteMeterColor(usedPercent);
 
+  if (large) {
+    return (
+      <div>
+        <p className="font-display text-2xl font-bold tabular-nums text-dark-50">
+          {formatTraffic(usedGb)}{' '}
+          <span className="text-sm font-medium text-dark-400">/ {formatTraffic(limitGb)}</span>
+        </p>
+        <div
+          className="mt-3 h-0.5 w-full overflow-hidden bg-dark-700/60"
+          role="progressbar"
+          aria-valuenow={Math.round(width)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={t('lite.traffic.label', 'Трафик')}
+        >
+          <div
+            className="h-full transition-[width] duration-500 ease-out"
+            style={{ width: `${width}%`, background: color }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div
-        className="h-1.5 w-full overflow-hidden rounded-full bg-dark-700/40"
+        className="h-0.5 w-full overflow-hidden bg-dark-700/60"
         role="progressbar"
         aria-valuenow={Math.round(width)}
         aria-valuemin={0}
@@ -42,7 +71,7 @@ export function LiteMeter({ usedGb, limitGb, usedPercent }: LiteMeterProps) {
         aria-label={t('lite.traffic.label', 'Трафик')}
       >
         <div
-          className="h-full rounded-full transition-[width] duration-500 ease-out"
+          className="h-full transition-[width] duration-500 ease-out"
           style={{ width: `${width}%`, background: color }}
         />
       </div>
