@@ -19,6 +19,8 @@ ARG VITE_APP_NAME=Cabinet
 ARG VITE_APP_LOGO=V
 # BlackBird: адрес исходников этой сборки — ссылка «Исходный код» (AGPL-3.0, §13)
 ARG VITE_SOURCE_URL=
+# BlackBird: адрес лендинга — логотип на главной ведёт туда
+ARG VITE_LANDING_URL=
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL
@@ -26,6 +28,7 @@ ENV VITE_TELEGRAM_BOT_USERNAME=$VITE_TELEGRAM_BOT_USERNAME
 ENV VITE_APP_NAME=$VITE_APP_NAME
 ENV VITE_APP_LOGO=$VITE_APP_LOGO
 ENV VITE_SOURCE_URL=$VITE_SOURCE_URL
+ENV VITE_LANDING_URL=$VITE_LANDING_URL
 
 # Build the application. Type-check намеренно пропущен: tsc --noEmit уже
 # гоняется CI на каждый PR (lint.yml), образ собирается из проверенного

@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_APP_LOGO?: string;
   /** BlackBird: адрес исходников этой сборки (AGPL-3.0, раздел 13). */
   readonly VITE_SOURCE_URL?: string;
+  /** BlackBird: адрес лендинга — логотип на главной ведёт туда. */
+  readonly VITE_LANDING_URL?: string;
   /** Optional override for the backend liveness URL (defaults to `<origin>/health/unified`). */
   readonly VITE_HEALTH_URL?: string;
 }

@@ -62,3 +62,4 @@ jobs:
             VITE_API_URL=/api
             VITE_APP_NAME=BlackBird
             VITE_SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+            VITE_LANDING_URL=https://blackbirdnet.com/

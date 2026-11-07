@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import TicketNotificationBell from '@/components/TicketNotificationBell';
 import { LogoutButton } from './LogoutButton';
+import { useLogoClick } from '@/components/blackbird/useLogoClick';
 
 // Icons
 import {
@@ -90,6 +91,7 @@ export function AppHeader({
   const { haptic, platform } = usePlatform();
   const avatar = useUserAvatar(user);
   const [logoLoaded, setLogoLoaded] = useState(() => isLogoPreloaded());
+  const handleLogoClick = useLogoClick(() => setMobileMenuOpen(false));
 
   // Branding
   const { data: branding } = useQuery({
@@ -185,7 +187,7 @@ export function AppHeader({
             {/* Logo */}
             <Link
               to="/"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={handleLogoClick}
               className={cn('flex flex-shrink-0 items-center gap-2.5', !appName && 'mr-4')}
             >
               <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-linear-lg border border-dark-700/50 bg-dark-800/80 shadow-md">

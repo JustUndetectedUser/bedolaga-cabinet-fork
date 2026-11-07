@@ -41,6 +41,7 @@ import {
 import { MobileBottomNav } from './MobileBottomNav';
 import { isMobileNavScreen, mobileNavItems } from './mobileNavRoutes';
 import { AppHeader } from './AppHeader';
+import { useLogoClick } from '@/components/blackbird/useLogoClick';
 import { LogoutButton } from './LogoutButton';
 import { useBackgroundConsumer } from '@/components/backgrounds/BackgroundHost';
 
@@ -114,6 +115,7 @@ export function AppShell({ children }: AppShellProps) {
   const handleNavClick = () => {
     haptic.impact('light');
   };
+  const handleLogoClick = useLogoClick(handleNavClick);
 
   // A single elegant nav link: icon + label always visible, with a shared
   // framer-motion pill that slides to the active item on navigation.
@@ -185,7 +187,7 @@ export function AppShell({ children }: AppShellProps) {
           <Link
             to="/"
             className="flex shrink-0 items-center gap-2.5 justify-self-start"
-            onClick={handleNavClick}
+            onClick={handleLogoClick}
           >
             <div className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-dark-800">
               <span
