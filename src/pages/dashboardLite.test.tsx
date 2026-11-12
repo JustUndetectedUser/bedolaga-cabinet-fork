@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -352,5 +352,64 @@ describe('DashboardLite: отказ сети', () => {
     const action = await screen.findByRole('button', { name: /lite\.action\.tryPaid/ });
     action.click();
     await waitFor(() => expect(activateTrial).toHaveBeenCalled());
+  });
+
+  // BlackBird: ссылки из бота открывают кабинет в новой вкладке; старая вкладка
+  // с «Попробовать бесплатно» не должна кончаться английской ошибкой.
+  it('устаревшая вкладка: «подписка уже есть» — без ошибки, экран показывает подписку', async () => {
+    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getTrialInfo.mockResolvedValue({
+      is_available: true,
+      requires_payment: false,
+      price_rubles: 0,
+    });
+    activateTrial.mockRejectedValue(
+      Object.assign(new Error('400'), {
+        isAxiosError: true,
+        response: { status: 400, data: { detail: 'You already have an active subscription' } },
+      }),
+    );
+    renderScreen();
+
+    const action = await screen.findByRole('button', { name: 'lite.action.tryFree' });
+    getSubscription.mockResolvedValue({
+      has_subscription: true,
+      subscription: { ...baseSubscription, is_trial: true },
+    });
+    action.click();
+
+    expect((await primaryAction()).textContent).toContain('lite.action.connect');
+    expect(screen.queryByText(/already have an active subscription/i)).toBeNull();
+  });
+
+  it('другая ошибка триала остаётся видна, пока предложение на экране', async () => {
+    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getTrialInfo.mockResolvedValue({
+      is_available: true,
+      requires_payment: false,
+      price_rubles: 0,
+    });
+    activateTrial.mockRejectedValue(
+      Object.assign(new Error('500'), {
+        isAxiosError: true,
+        response: { status: 500, data: { detail: 'Панель недоступна' } },
+      }),
+    );
+    renderScreen();
+
+    (await screen.findByRole('button', { name: 'lite.action.tryFree' })).click();
+    expect(await screen.findByText('Панель недоступна')).toBeTruthy();
+  });
+
+  it('вкладка переспрашивает подписку, когда к ней возвращаются', async () => {
+    renderScreen();
+    await primaryAction();
+    const before = getSubscription.mock.calls.length;
+
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+
+    await waitFor(() => expect(getSubscription.mock.calls.length).toBeGreaterThan(before));
+    focusManager.setFocused(undefined);
   });
 });

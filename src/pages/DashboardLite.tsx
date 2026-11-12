@@ -70,6 +70,9 @@ function HeroNumber({
  * Полный вид (Dashboard) остаётся нетронутым: переключение — настройка
  * оператора, и откатиться он должен мгновенно.
  */
+/** Ответ бэка на триал при уже выданной подписке (текст приходит по-английски). */
+const ALREADY_SUBSCRIBED = /already have an active subscription/i;
+
 export default function DashboardLite() {
   const { t } = useTranslation();
   const { formatAmount, currencySymbol } = useCurrency();
@@ -83,6 +86,11 @@ export default function DashboardLite() {
     queryKey: ['subscriptions-list'],
     queryFn: () => subscriptionApi.getSubscriptions(),
     staleTime: 60_000,
+    // BlackBird: ссылки из бота открывают кабинет в НОВОЙ вкладке, старая
+    // остаётся с устаревшим экраном («Попробовать бесплатно» у того, кто уже
+    // взял триал → «You already have an active subscription»). Вкладка
+    // переспрашивает подписку, когда к ней возвращаются.
+    refetchOnWindowFocus: 'always',
   });
 
   const subscriptions = useMemo(() => list?.subscriptions ?? [], [list]);
@@ -106,6 +114,7 @@ export default function DashboardLite() {
     enabled: wantsSingle,
     retry: false,
     staleTime: API.BALANCE_STALE_TIME_MS,
+    refetchOnWindowFocus: 'always',
   });
 
   const subscription = subscriptionResponse?.subscription ?? null;
@@ -131,21 +140,31 @@ export default function DashboardLite() {
     queryFn: () => subscriptionApi.getTrialInfo(),
     enabled: wantsSingle && !subLoading && !subscription,
     retry: false,
+    refetchOnWindowFocus: 'always',
   });
 
   const queryClient = useQueryClient();
   const [trialError, setTrialError] = useState<string | null>(null);
 
+  const refreshAfterTrial = () => {
+    for (const key of ['subscription', 'subscriptions-list', 'trial-info', 'balance']) {
+      queryClient.invalidateQueries({ queryKey: [key] });
+    }
+  };
+
   const activateTrial = useMutation({
     mutationFn: () => subscriptionApi.activateTrial(),
     onSuccess: () => {
       setTrialError(null);
-      for (const key of ['subscription', 'subscriptions-list', 'trial-info', 'balance']) {
-        queryClient.invalidateQueries({ queryKey: [key] });
-      }
+      refreshAfterTrial();
     },
     onError: (error: unknown) => {
-      setTrialError(getApiErrorMessage(error, t('common.error')));
+      // BlackBird: экран мог устареть (подписку уже выдали в другой вкладке или
+      // в боте) — переспрашиваем всегда. «Подписка уже есть» — не ошибка для
+      // человека: после обновления он увидит свою подписку, а не английский текст.
+      refreshAfterTrial();
+      const message = getApiErrorMessage(error, t('common.error'));
+      setTrialError(ALREADY_SUBSCRIBED.test(message) ? null : message);
     },
   });
 
@@ -403,7 +422,7 @@ export default function DashboardLite() {
         )}
       </div>
 
-      {trialError && (
+      {trialError && offersTrial && (
         <p className="mt-3 text-sm text-error-400" role="alert">
           {trialError}
         </p>
