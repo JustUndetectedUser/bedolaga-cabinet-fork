@@ -27,6 +27,7 @@ import { getPendingReferralCode } from '../utils/referral';
 import { UsersIcon, EmailIcon, RefreshIcon, ChevronDownIcon } from '@/components/icons';
 import { CheckEmailCard } from '@/components/auth/CheckEmailCard';
 import LegalFooter from '../components/LegalFooter';
+import GuestKeyLink from '../components/blackbird/GuestKeyLink';
 import LegalConsent from '../components/LegalConsent';
 import LegalConsentGate from '../components/LegalConsentGate';
 import { useLegalConsentGate } from '../hooks/useLegalConsentGate';
@@ -831,6 +832,9 @@ export default function Login() {
                 </div>
               </>
             )}
+
+            {/* BlackBird: вход без Telegram — разовый ключ (VITE_GUEST_URL) */}
+            <GuestKeyLink inTelegram={isTelegramWebApp || isInTelegramWebApp()} />
           </div>
         )}
         {footerEnabled && <LegalFooter className="pt-1" />}

@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly VITE_SOURCE_URL?: string;
   /** BlackBird: адрес лендинга — логотип на главной ведёт туда. */
   readonly VITE_LANDING_URL?: string;
+  /** BlackBird: страница разового ключа (вход без Telegram) — ссылка на экране входа. */
+  readonly VITE_GUEST_URL?: string;
   /** Optional override for the backend liveness URL (defaults to `<origin>/health/unified`). */
   readonly VITE_HEALTH_URL?: string;
 }

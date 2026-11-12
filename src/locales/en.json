@@ -7928,6 +7928,10 @@
       "card": "Card",
       "noCard": "not needed"
     },
-    "source": "Source code"
+    "source": "Source code",
+    "guest": {
+      "question": "No access to Telegram?",
+      "link": "Get a one-time key"
+    }
   }
 }
