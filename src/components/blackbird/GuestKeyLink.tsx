@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
+import { KeyIcon } from '@/components/icons';
+
 /**
  * «Нет доступа к Telegram? Получить разовый ключ» под карточкой входа.
  *
@@ -28,19 +30,7 @@ export default function GuestKeyLink({ inTelegram = false }: { inTelegram?: bool
         href={url}
         className="inline-flex items-center gap-2 rounded-lg border border-dark-700 bg-dark-800/50 px-6 py-3 text-sm font-medium text-dark-200 transition-colors hover:border-dark-600 hover:bg-dark-800"
       >
-        <svg
-          className="h-5 w-5 text-accent-400"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="7.5" cy="15.5" r="4.5" />
-          <path d="M10.7 12.3 21 2M17 6l3 3M14.5 8.5l2 2" />
-        </svg>
+        <KeyIcon className="text-accent-400" />
         {t('blackbird.guest.link', 'Получить разовый ключ')}
       </a>
     </div>
