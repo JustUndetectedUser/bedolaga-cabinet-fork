@@ -16,15 +16,33 @@ export default function GuestKeyLink({ inTelegram = false }: { inTelegram?: bool
 
   if (!url || inTelegram) return null;
 
+  // Не сноска, а кнопка того же веса, что «Войти через бота» (Никита, 12.11): кто без Telegram,
+  // упирается в карточку входа и не должен пропустить выход из неё.
   return (
-    <>
-      <div className="my-4 h-px bg-dark-700" />
-      <p className="text-center text-sm text-dark-400">
-        {t('blackbird.guest.question', 'Нет доступа к Telegram?')}{' '}
-        <a href={url} className="text-accent-400 transition-colors hover:text-accent-300">
-          {t('blackbird.guest.link', 'Получить разовый ключ')}
-        </a>
+    <div className="flex flex-col items-center">
+      <div className="my-4 h-px w-full bg-dark-700" />
+      <p className="mb-3 text-center text-sm text-dark-300">
+        {t('blackbird.guest.question', 'Нет доступа к Telegram?')}
       </p>
-    </>
+      <a
+        href={url}
+        className="inline-flex items-center gap-2 rounded-lg border border-dark-700 bg-dark-800/50 px-6 py-3 text-sm font-medium text-dark-200 transition-colors hover:border-dark-600 hover:bg-dark-800"
+      >
+        <svg
+          className="h-5 w-5 text-accent-400"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="7.5" cy="15.5" r="4.5" />
+          <path d="M10.7 12.3 21 2M17 6l3 3M14.5 8.5l2 2" />
+        </svg>
+        {t('blackbird.guest.link', 'Получить разовый ключ')}
+      </a>
+    </div>
   );
 }
