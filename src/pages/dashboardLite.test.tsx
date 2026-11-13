@@ -44,7 +44,9 @@ vi.mock('@/api/subscription', () => ({
 }));
 
 vi.mock('@/api/balance', () => ({
-  balanceApi: { getBalance: () => Promise.resolve({ balance_rubles: 350, balance_kopeks: 35000 }) },
+  balanceApi: {
+    getBalance: () => Promise.resolve({ balance_rubles: 350, balance_kopeks: 35000 }),
+  },
 }));
 
 vi.mock('@/api/promo', () => ({
@@ -71,7 +73,9 @@ const baseSubscription = {
 };
 
 function renderScreen() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -87,10 +91,20 @@ async function primaryAction() {
 }
 
 beforeEach(() => {
-  getSubscriptions.mockResolvedValue({ subscriptions: [], multi_tariff_enabled: false });
-  getSubscription.mockResolvedValue({ has_subscription: true, subscription: baseSubscription });
+  getSubscriptions.mockResolvedValue({
+    subscriptions: [],
+    multi_tariff_enabled: false,
+  });
+  getSubscription.mockResolvedValue({
+    has_subscription: true,
+    subscription: baseSubscription,
+  });
   getDevices.mockResolvedValue({ total: 2, devices: [] });
-  getTrialInfo.mockResolvedValue({ is_available: false, requires_payment: false, price_rubles: 0 });
+  getTrialInfo.mockResolvedValue({
+    is_available: false,
+    requires_payment: false,
+    price_rubles: 0,
+  });
   activateTrial.mockResolvedValue({});
 });
 
@@ -140,14 +154,21 @@ describe('DashboardLite', () => {
     const action = await primaryAction();
     expect(action.textContent).toContain('lite.action.connect');
     expect(action.getAttribute('href')).toBe('/connection?sub=7');
-    const plans = await screen.findByRole('link', { name: /Посмотреть тарифы/ });
+    const plans = await screen.findByRole('link', {
+      name: /Посмотреть тарифы/,
+    });
     expect(plans.getAttribute('href')).toBe('/subscription/purchase');
   });
 
   it('истёкший триал ведёт в витрину тарифов, а не в продление', async () => {
     getSubscription.mockResolvedValue({
       has_subscription: true,
-      subscription: { ...baseSubscription, is_trial: true, is_expired: true, days_left: 0 },
+      subscription: {
+        ...baseSubscription,
+        is_trial: true,
+        is_expired: true,
+        days_left: 0,
+      },
     });
     renderScreen();
 
@@ -157,7 +178,10 @@ describe('DashboardLite', () => {
   });
 
   it('без подписки ведёт в витрину тарифов', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     renderScreen();
 
     const action = await primaryAction();
@@ -169,7 +193,10 @@ describe('DashboardLite', () => {
     // Витрина тарифов активировать пробный период не умеет: там есть лишь
     // предложение апгрейда уже начатому триалу. Если простой экран не позовёт
     // попробовать, новый человек про бесплатный вход не узнает вовсе.
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: false,
@@ -177,7 +204,9 @@ describe('DashboardLite', () => {
     });
     renderScreen();
 
-    const action = await screen.findByRole('button', { name: 'lite.action.tryFree' });
+    const action = await screen.findByRole('button', {
+      name: 'lite.action.tryFree',
+    });
     expect(screen.queryByRole('link', { name: /^lite\.action\./ })).toBeNull();
 
     action.click();
@@ -185,7 +214,10 @@ describe('DashboardLite', () => {
   });
 
   it('при доступном триале витрина тарифов остаётся строкой', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: false,
@@ -200,7 +232,10 @@ describe('DashboardLite', () => {
   });
 
   it('платный триал называет цену, а не притворяется бесплатным', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: true,
@@ -208,13 +243,18 @@ describe('DashboardLite', () => {
     });
     renderScreen();
 
-    const action = await screen.findByRole('button', { name: /lite\.action\.tryPaid/ });
+    const action = await screen.findByRole('button', {
+      name: /lite\.action\.tryPaid/,
+    });
     expect(action.textContent).toContain('lite.action.tryPaid');
     expect(screen.queryByRole('button', { name: 'lite.action.tryFree' })).toBeNull();
   });
 
   it('без подписки не показывает ни шкалы трафика, ни строки устройств', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     renderScreen();
     await primaryAction();
 
@@ -232,13 +272,38 @@ describe('DashboardLite', () => {
   it('безлимитная подписка обходится без шкалы', async () => {
     getSubscription.mockResolvedValue({
       has_subscription: true,
-      subscription: { ...baseSubscription, traffic_limit_gb: 0, traffic_used_percent: 0 },
+      subscription: {
+        ...baseSubscription,
+        traffic_limit_gb: 0,
+        traffic_used_percent: 0,
+      },
     });
     renderScreen();
     await primaryAction();
 
     expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.getByText('Трафик без ограничений')).toBeTruthy();
+  });
+
+  it('подписка на годы вперёд — «∞ бессрочно», а не четырёхзначное число дней', async () => {
+    getSubscription.mockResolvedValue({
+      has_subscription: true,
+      subscription: { ...baseSubscription, days_left: 3649 },
+    });
+    renderScreen();
+    await primaryAction();
+
+    expect(screen.getByText('∞')).toBeTruthy();
+    expect(screen.getByText('blackbird.endless')).toBeTruthy(); // t() в тесте отдаёт ключ
+    expect(screen.queryByText('3649')).toBeNull();
+  });
+
+  it('обычный срок — по-прежнему число дней', async () => {
+    renderScreen();
+    await primaryAction();
+
+    expect(screen.getByText('23')).toBeTruthy();
+    expect(screen.queryByText('∞')).toBeNull();
   });
 
   it('несколько подписок: экран становится выбором, без единственного действия', async () => {
@@ -309,7 +374,10 @@ describe('DashboardLite: отказ сети', () => {
     renderScreen();
 
     const retry = await screen.findByRole('button', { name: 'Повторить' });
-    getSubscriptions.mockResolvedValue({ subscriptions: [], multi_tariff_enabled: false });
+    getSubscriptions.mockResolvedValue({
+      subscriptions: [],
+      multi_tariff_enabled: false,
+    });
     retry.click();
 
     const action = await primaryAction();
@@ -320,7 +388,10 @@ describe('DashboardLite: отказ сети', () => {
     // Полный вид при нехватке денег подменяет кнопку ссылкой на пополнение и
     // не отправляет запрос вовсе. Простой экран обязан вести себя так же:
     // иначе человек жмёт «Попробовать», получает ошибку и остаётся без выхода.
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: true,
@@ -340,7 +411,10 @@ describe('DashboardLite: отказ сети', () => {
   });
 
   it('платный триал по карману остаётся кнопкой оплаты', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: true,
@@ -349,7 +423,9 @@ describe('DashboardLite: отказ сети', () => {
     });
     renderScreen();
 
-    const action = await screen.findByRole('button', { name: /lite\.action\.tryPaid/ });
+    const action = await screen.findByRole('button', {
+      name: /lite\.action\.tryPaid/,
+    });
     action.click();
     await waitFor(() => expect(activateTrial).toHaveBeenCalled());
   });
@@ -357,7 +433,10 @@ describe('DashboardLite: отказ сети', () => {
   // BlackBird: ссылки из бота открывают кабинет в новой вкладке; старая вкладка
   // с «Попробовать бесплатно» не должна кончаться английской ошибкой.
   it('устаревшая вкладка: «подписка уже есть» — без ошибки, экран показывает подписку', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: false,
@@ -366,12 +445,17 @@ describe('DashboardLite: отказ сети', () => {
     activateTrial.mockRejectedValue(
       Object.assign(new Error('400'), {
         isAxiosError: true,
-        response: { status: 400, data: { detail: 'You already have an active subscription' } },
+        response: {
+          status: 400,
+          data: { detail: 'You already have an active subscription' },
+        },
       }),
     );
     renderScreen();
 
-    const action = await screen.findByRole('button', { name: 'lite.action.tryFree' });
+    const action = await screen.findByRole('button', {
+      name: 'lite.action.tryFree',
+    });
     getSubscription.mockResolvedValue({
       has_subscription: true,
       subscription: { ...baseSubscription, is_trial: true },
@@ -383,7 +467,10 @@ describe('DashboardLite: отказ сети', () => {
   });
 
   it('другая ошибка триала остаётся видна, пока предложение на экране', async () => {
-    getSubscription.mockResolvedValue({ has_subscription: false, subscription: null });
+    getSubscription.mockResolvedValue({
+      has_subscription: false,
+      subscription: null,
+    });
     getTrialInfo.mockResolvedValue({
       is_available: true,
       requires_payment: false,

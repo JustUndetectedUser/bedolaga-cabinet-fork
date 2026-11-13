@@ -8516,6 +8516,7 @@
     }
   },
   "blackbird": {
+    "endless": "бессрочно",
     "daysLeft_one": "день\nосталось",
     "daysLeft_few": "дня\nосталось",
     "daysLeft_many": "дней\nосталось",

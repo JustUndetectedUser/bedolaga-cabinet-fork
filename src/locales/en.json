@@ -7903,6 +7903,7 @@
     }
   },
   "blackbird": {
+    "endless": "no end\ndate",
     "daysLeft_one": "day\nleft",
     "daysLeft_other": "days\nleft",
     "hoursLeft_one": "hour\nleft",

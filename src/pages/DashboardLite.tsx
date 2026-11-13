@@ -35,13 +35,20 @@ function ArrowIcon() {
   return <ArrowRightIcon className="h-5 w-5" />;
 }
 
+/**
+ * Подписка на годы вперёд (Unlimited Pro — 3650 дней) — «бессрочная»: четырёхзначное
+ * число дней в 120px не помещается на узком телефоне, а отсчитывать десять лет
+ * смысла нет. С этого порога вместо числа — «∞ бессрочно».
+ */
+export const ENDLESS_DAYS = 1000;
+
 /** Подпись к крупному числу: «дня осталось», «часа осталось», «дней бесплатно». */
 function HeroNumber({
   value,
   label,
   dim = false,
 }: {
-  value: number;
+  value: number | string;
   label: string;
   dim?: boolean;
 }) {
@@ -269,7 +276,9 @@ export default function DashboardLite() {
               {trialInfo?.duration_days ?? 0}
             </span>
             <span className="whitespace-pre-line font-display text-[22px] font-semibold leading-[1.1] text-dark-50">
-              {t('blackbird.trialOffer.days', { count: trialInfo?.duration_days ?? 0 })}
+              {t('blackbird.trialOffer.days', {
+                count: trialInfo?.duration_days ?? 0,
+              })}
             </span>
           </h1>
           <p className="mt-4 text-[15px] leading-relaxed text-dark-400">
@@ -283,7 +292,9 @@ export default function DashboardLite() {
               <div className="flex items-center justify-between py-4 text-[15px]">
                 <dt className="text-dark-400">{t('blackbird.trialOffer.devices', 'Устройства')}</dt>
                 <dd className="font-semibold text-dark-50">
-                  {t('blackbird.trialOffer.upTo', 'до {{n}}', { n: trialInfo?.device_limit })}
+                  {t('blackbird.trialOffer.upTo', 'до {{n}}', {
+                    n: trialInfo?.device_limit,
+                  })}
                 </dd>
               </div>
             )}
@@ -324,10 +335,14 @@ export default function DashboardLite() {
                 value={hoursLeft}
                 label={t('blackbird.hoursLeft', { count: hoursLeft })}
               />
+            ) : status.key !== 'expired' && daysLeft >= ENDLESS_DAYS ? (
+              <HeroNumber value="∞" label={t('blackbird.endless')} />
             ) : (
               <HeroNumber
                 value={status.key === 'expired' ? 0 : daysLeft}
-                label={t('blackbird.daysLeft', { count: status.key === 'expired' ? 0 : daysLeft })}
+                label={t('blackbird.daysLeft', {
+                  count: status.key === 'expired' ? 0 : daysLeft,
+                })}
                 dim={status.key === 'expired'}
               />
             ))}
@@ -369,7 +384,9 @@ export default function DashboardLite() {
                 {deviceLimit > 0 && deviceLimit <= 24 && (
                   <div
                     className="mt-3 grid gap-1"
-                    style={{ gridTemplateColumns: `repeat(${deviceLimit}, minmax(0, 1fr))` }}
+                    style={{
+                      gridTemplateColumns: `repeat(${deviceLimit}, minmax(0, 1fr))`,
+                    }}
                     aria-hidden="true"
                   >
                     {Array.from({ length: deviceLimit }, (_, i) => (
