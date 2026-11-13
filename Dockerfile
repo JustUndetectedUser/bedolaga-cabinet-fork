@@ -23,6 +23,8 @@ ARG VITE_SOURCE_URL=
 ARG VITE_LANDING_URL=
 # BlackBird: страница разового ключа — ссылка «Нет доступа к Telegram?» на экране входа
 ARG VITE_GUEST_URL=
+# BlackBird: страница приглашений для админов — пункт «Приглашения» в админке
+ARG VITE_INVITE_URL=
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL
@@ -32,6 +34,7 @@ ENV VITE_APP_LOGO=$VITE_APP_LOGO
 ENV VITE_SOURCE_URL=$VITE_SOURCE_URL
 ENV VITE_LANDING_URL=$VITE_LANDING_URL
 ENV VITE_GUEST_URL=$VITE_GUEST_URL
+ENV VITE_INVITE_URL=$VITE_INVITE_URL
 
 # Build the application. Type-check намеренно пропущен: tsc --noEmit уже
 # гоняется CI на каждый PR (lint.yml), образ собирается из проверенного

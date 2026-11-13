@@ -111,7 +111,13 @@ interface AdminNavItem {
   icon: IconName;
   to: string;
   permission: string;
+  /** BlackBird: страница не кабинета (сервис на том же домене) — обычный переход, не роутер */
+  external?: boolean;
 }
+
+// BlackBird: «Приглашения» на бесплатный бессрочный тариф — страница сервиса guest-key
+// (invites.py, маршрут Caddy /invite на домене кабинета). Адрес — при сборке; без него пункта нет.
+const INVITES_URL = import.meta.env.VITE_INVITE_URL;
 
 interface AdminSection {
   id: string;
@@ -180,6 +186,17 @@ const sections: AdminSection[] = [
         to: '/admin/ban-system',
         permission: 'ban_system:read',
       },
+      ...(INVITES_URL
+        ? [
+            {
+              name: 'blackbird.invites.nav',
+              icon: 'user-check' as const,
+              to: INVITES_URL,
+              permission: 'users:subscription',
+              external: true,
+            },
+          ]
+        : []),
     ],
   },
   {
@@ -588,6 +605,7 @@ const GlassCard = memo(function GlassCard({ section, index, searchTerm }: GlassC
           <Link
             key={item.to}
             to={item.to}
+            reloadDocument={item.external}
             className={cn(
               'group/item flex items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 transition-colors duration-150',
               hoveredItem === i

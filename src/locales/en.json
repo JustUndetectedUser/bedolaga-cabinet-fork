@@ -7932,6 +7932,9 @@
     "guest": {
       "question": "No access to Telegram?",
       "link": "Get a one-time key"
+    },
+    "invites": {
+      "nav": "Invites"
     }
   }
 }
