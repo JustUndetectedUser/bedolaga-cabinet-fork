@@ -7908,6 +7908,8 @@
     "daysLeft_other": "days\nleft",
     "hoursLeft_one": "hour\nleft",
     "hoursLeft_other": "hours\nleft",
+    "minutesLeft_one": "minute\nleft",
+    "minutesLeft_other": "minutes\nleft",
     "kicker": {
       "trial": "trial",
       "active": "active",

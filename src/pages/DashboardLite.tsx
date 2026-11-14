@@ -242,10 +242,12 @@ export default function DashboardLite() {
   const kicker = subscription ? heroKicker(t, status.key, subscription.tariff_name) : null;
   const daysLeft = Math.max(0, subscription?.days_left ?? 0);
   const hoursLeft = Math.max(0, subscription?.hours_left ?? 0);
-  // Последние сутки считаем часами: «0 дней осталось» у живой подписки
-  // читается как «уже не работает».
-  const showHours =
-    Boolean(subscription) && status.key !== 'expired' && daysLeft === 0 && hoursLeft > 0;
+  const minutesLeft = Math.max(0, subscription?.minutes_left ?? 0);
+  // Последние сутки считаем часами, последний час — минутами: «0 дней осталось»
+  // у живой подписки читается как «уже не работает».
+  const lastDay = Boolean(subscription) && status.key !== 'expired' && daysLeft === 0;
+  const showHours = lastDay && hoursLeft > 0;
+  const showMinutes = lastDay && hoursLeft === 0 && minutesLeft > 0;
   // Вторая кнопка ведёт к тарифам. Если главная уже ведёт туда же («Выбрать
   // тариф» после конца триала), вторая была бы дублем.
   const primaryGoesToPlans =
@@ -334,6 +336,11 @@ export default function DashboardLite() {
               <HeroNumber
                 value={hoursLeft}
                 label={t('blackbird.hoursLeft', { count: hoursLeft })}
+              />
+            ) : showMinutes ? (
+              <HeroNumber
+                value={minutesLeft}
+                label={t('blackbird.minutesLeft', { count: minutesLeft })}
               />
             ) : status.key !== 'expired' && daysLeft >= ENDLESS_DAYS ? (
               <HeroNumber value="∞" label={t('blackbird.endless')} />

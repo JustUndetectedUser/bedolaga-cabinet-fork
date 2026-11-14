@@ -8525,6 +8525,10 @@
     "hoursLeft_few": "часа\nосталось",
     "hoursLeft_many": "часов\nосталось",
     "hoursLeft_other": "часа\nосталось",
+    "minutesLeft_one": "минута\nосталась",
+    "minutesLeft_few": "минуты\nосталось",
+    "minutesLeft_many": "минут\nосталось",
+    "minutesLeft_other": "минуты\nосталось",
     "kicker": {
       "trial": "пробный период",
       "active": "активна",

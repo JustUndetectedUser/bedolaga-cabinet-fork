@@ -285,6 +285,19 @@ describe('DashboardLite', () => {
     expect(screen.getByText('Трафик без ограничений')).toBeTruthy();
   });
 
+  it('последний час живой подписки — минутами, а не «0 дней осталось»', async () => {
+    getSubscription.mockResolvedValue({
+      has_subscription: true,
+      subscription: { ...baseSubscription, days_left: 0, hours_left: 0, minutes_left: 25 },
+    });
+    renderScreen();
+    await primaryAction();
+
+    expect(screen.getByText('25')).toBeTruthy();
+    expect(screen.getByText('blackbird.minutesLeft')).toBeTruthy(); // t() в тесте отдаёт ключ
+    expect(screen.queryByText('blackbird.daysLeft')).toBeNull();
+  });
+
   it('подписка на годы вперёд — «∞ бессрочно», а не четырёхзначное число дней', async () => {
     getSubscription.mockResolvedValue({
       has_subscription: true,
