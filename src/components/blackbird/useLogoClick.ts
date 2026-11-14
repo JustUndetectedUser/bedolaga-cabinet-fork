@@ -23,6 +23,10 @@ export function useLogoClick(onClick?: () => void) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.();
     if (!LANDING_URL || pathname !== '/') return;
+    // Ctrl/Cmd/Shift/Alt-клик и не левая кнопка — «открыть в новой вкладке»: это делает сам браузер,
+    // текущую вкладку на лендинг не уводим
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
 
     event.preventDefault();
     if (platform === 'telegram') openLink(LANDING_URL);

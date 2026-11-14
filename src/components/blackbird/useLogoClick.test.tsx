@@ -34,7 +34,7 @@ afterEach(() => {
   platform.value = 'web';
 });
 
-async function renderAt(path: string, landing: string | undefined) {
+async function renderAt(path: string, landing: string | undefined, click?: MouseEventInit) {
   if (landing !== undefined) vi.stubEnv('VITE_LANDING_URL', landing);
   const { useLogoClick } = await import('./useLogoClick');
   const onClick = vi.fn();
@@ -57,7 +57,7 @@ async function renderAt(path: string, landing: string | undefined) {
       </Routes>
     </MemoryRouter>,
   );
-  fireEvent.click(screen.getByText('logo'));
+  fireEvent.click(screen.getByText('logo'), click);
   return onClick;
 }
 
@@ -83,6 +83,16 @@ describe('логотип в шапке', () => {
     expect(openLink).toHaveBeenCalledWith(LANDING);
     expect(assign).not.toHaveBeenCalled();
   });
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { button: 1 }])(
+    'на главной клик с модификатором %o — «в новой вкладке», текущую на лендинг не уводим',
+    async (click) => {
+      const onClick = await renderAt('/', LANDING, click);
+      expect(assign).not.toHaveBeenCalled();
+      expect(openLink).not.toHaveBeenCalled();
+      expect(onClick).toHaveBeenCalledOnce();
+    },
+  );
 
   it('без VITE_LANDING_URL — как в апстриме', async () => {
     await renderAt('/', '');
