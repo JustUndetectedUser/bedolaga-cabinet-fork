@@ -131,7 +131,15 @@ export default {
           'sans-serif',
         ],
         display: ['Twemoji Country Flags', 'Inter Tight Variable', 'Inter Variable', 'system-ui', 'sans-serif'],
-        mono: ['Twemoji Country Flags', 'IBM Plex Mono', 'ui-monospace', 'monospace'],
+        // BlackBird: IBM Plex Mono шёл с Google Fonts, которые убраны из index.html, — системный моноширинный
+        mono: [
+          'Twemoji Country Flags',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Consolas',
+          'monospace',
+        ],
       },
       // BlackBird B1: почти прямые углы во всём кабинете. Округлые классы
       // апстрима (rounded-xl…3xl) сводятся к 4–6px, rounded-full не трогаем.

@@ -7349,5 +7349,39 @@
     "subscription": {
       "untitled": "订阅"
     }
+  },
+  "blackbird": {
+    "endless": "无限期",
+    "daysLeft_other": "天\n剩余",
+    "hoursLeft_other": "小时\n剩余",
+    "minutesLeft_other": "分钟\n剩余",
+    "kicker": {
+      "trial": "试用期",
+      "active": "有效",
+      "expiring": "即将到期",
+      "expired": "已到期",
+      "limited": "流量已用完",
+      "paused": "已暂停",
+      "legacy": "需要选择套餐"
+    },
+    "trialOffer": {
+      "kicker": "新用户礼物",
+      "days_other": "天\n免费",
+      "hint": "完整体验我们最受欢迎的套餐，功能不打折。",
+      "devices": "设备",
+      "upTo": "最多 {{n}} 台",
+      "traffic": "期间流量",
+      "unlimited": "不限量",
+      "card": "银行卡",
+      "noCard": "不需要"
+    },
+    "source": "源代码",
+    "guest": {
+      "question": "无法打开 Telegram？",
+      "link": "获取一次性密钥"
+    },
+    "invites": {
+      "nav": "邀请"
+    }
   }
 }

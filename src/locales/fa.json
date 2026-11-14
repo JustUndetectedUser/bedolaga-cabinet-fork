@@ -7404,5 +7404,43 @@
     "subscription": {
       "untitled": "اشتراک"
     }
+  },
+  "blackbird": {
+    "endless": "بدون\nتاریخ پایان",
+    "daysLeft_one": "روز\nباقی مانده",
+    "daysLeft_other": "روز\nباقی مانده",
+    "hoursLeft_one": "ساعت\nباقی مانده",
+    "hoursLeft_other": "ساعت\nباقی مانده",
+    "minutesLeft_one": "دقیقه\nباقی مانده",
+    "minutesLeft_other": "دقیقه\nباقی مانده",
+    "kicker": {
+      "trial": "دوره آزمایشی",
+      "active": "فعال",
+      "expiring": "رو به پایان",
+      "expired": "منقضی شده",
+      "limited": "ترافیک تمام شد",
+      "paused": "متوقف شده",
+      "legacy": "انتخاب تعرفه لازم است"
+    },
+    "trialOffer": {
+      "kicker": "هدیه برای کاربران جدید",
+      "days_one": "روز\nرایگان",
+      "days_other": "روز\nرایگان",
+      "hint": "محبوب‌ترین تعرفه ما را کامل و بدون محدودیت امتحان کنید.",
+      "devices": "دستگاه‌ها",
+      "upTo": "تا {{n}}",
+      "traffic": "ترافیک دوره",
+      "unlimited": "نامحدود",
+      "card": "کارت بانکی",
+      "noCard": "لازم نیست"
+    },
+    "source": "کد منبع",
+    "guest": {
+      "question": "به تلگرام دسترسی ندارید؟",
+      "link": "دریافت کلید یک‌بارمصرف"
+    },
+    "invites": {
+      "nav": "دعوت‌نامه‌ها"
+    }
   }
 }
