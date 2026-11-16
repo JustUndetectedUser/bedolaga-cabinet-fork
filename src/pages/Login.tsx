@@ -430,7 +430,7 @@ export default function Login() {
       <div className="relative w-full max-w-md space-y-5">
         {/* Logo & branding */}
         <div className="text-center">
-          <div className="relative mx-auto mb-3 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-dark-700/50 bg-dark-800/80 shadow-md">
+          <div className="bb-logo relative mx-auto mb-3 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-dark-700/50 bg-dark-800/80 shadow-md">
             {/* Letter fallback */}
             <span
               className={`absolute text-lg font-bold text-accent-400 transition-opacity duration-200 ${branding?.has_custom_logo && logoLoaded ? 'opacity-0' : 'opacity-100'}`}
