@@ -12,6 +12,7 @@ import { copyToClipboard } from '../utils/clipboard';
 import { getApiErrorMessage, isEndpointMissingError } from '../utils/api-error';
 import { useLegalConsentGate } from '../hooks/useLegalConsentGate';
 import LegalConsentGate from './LegalConsentGate';
+import { closeBotWindow, openBotWindow } from './blackbird/botWindow';
 
 interface TelegramLoginButtonProps {
   referralCode?: string;
@@ -317,6 +318,8 @@ export default function TelegramLoginButton({ referralCode }: TelegramLoginButto
         try {
           // Deep link auth is for existing bot users — only campaign_slug applies
           await loginWithDeepLink(token, capturedCampaign);
+          // BlackBird: вход выполнен, вкладка t.me с переходом в бота больше не нужна
+          closeBotWindow();
           // Success — auth store is updated, navigate
           if (expireTimeoutRef.current) {
             clearTimeout(expireTimeoutRef.current);
@@ -417,6 +420,7 @@ export default function TelegramLoginButton({ referralCode }: TelegramLoginButto
           pollInFlightRef.current = true;
           try {
             await loginWithDeepLink(deepLinkToken, capturedCampaign);
+            closeBotWindow();
             if (expireTimeoutRef.current) {
               clearTimeout(expireTimeoutRef.current);
               expireTimeoutRef.current = null;
@@ -515,6 +519,7 @@ export default function TelegramLoginButton({ referralCode }: TelegramLoginButto
               href={deepLinkUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(event) => openBotWindow(event, deepLinkUrl)}
               className="inline-flex items-center gap-2 rounded-lg bg-[#54a9eb] px-6 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#4a96d2]"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
