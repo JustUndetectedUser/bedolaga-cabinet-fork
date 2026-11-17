@@ -67,3 +67,4 @@ jobs:
             VITE_LANDING_URL=https://blackbirdnet.com/
             VITE_GUEST_URL=/guest
             VITE_INVITE_URL=/invite/admin
+            VITE_OFFERS_URL=/invite/offers

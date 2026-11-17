@@ -7903,6 +7903,10 @@
     }
   },
   "blackbird": {
+    "offer": {
+      "button": "🎁 A special plan is available to you",
+      "pending": "⏳ Request under review"
+    },
     "endless": "no end\ndate",
     "daysLeft_one": "day\nleft",
     "daysLeft_other": "days\nleft",

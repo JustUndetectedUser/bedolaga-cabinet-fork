@@ -28,6 +28,8 @@ import { ChevronRightIcon, StarIcon } from '@/components/icons';
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton';
 import { safeLocal } from '../utils/safeStorage';
 import { getApiErrorMessage } from '../utils/api-error';
+// BlackBird: карточка уникального тарифа
+import PromoOfferCard from '../components/blackbird/PromoOfferCard';
 
 export default function Dashboard() {
   const { t } = useTranslation();
@@ -293,6 +295,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* BlackBird: карточки уникальных тарифов промогрупп */}
+      <PromoOfferCard />
       {/* Header */}
       <div data-onboarding="welcome">
         <h1 className="text-2xl font-bold text-dark-50 sm:text-3xl">

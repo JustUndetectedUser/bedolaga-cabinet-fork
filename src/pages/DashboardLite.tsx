@@ -18,6 +18,8 @@ import { getApiErrorMessage } from '@/utils/api-error';
 import { formatLiteDate } from '@/utils/liteDate';
 import { formatTraffic } from '@/utils/formatTraffic';
 import { liteStatus, type LiteAction } from '@/utils/liteStatus';
+// BlackBird: карточка уникального тарифа
+import PromoOfferCard from '@/components/blackbird/PromoOfferCard';
 
 /**
  * Единственное главное действие экрана — ссылкой или кнопкой, вид один.
@@ -259,6 +261,10 @@ export default function DashboardLite() {
 
   return (
     <div className="mx-auto w-full max-w-lg">
+      {/* BlackBird: карточки уникальных тарифов промогрупп */}
+      <div className="space-y-3 pt-4 empty:hidden">
+        <PromoOfferCard />
+      </div>
       {hasMany ? (
         <ManySubscriptions
           items={subscriptions.map((item) => ({
