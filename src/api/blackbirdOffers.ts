@@ -1,4 +1,4 @@
-import { tokenStorage } from "@/utils/token";
+import { tokenStorage } from '@/utils/token';
 
 /**
  * BlackBird: уникальные тарифы промогрупп. Сервис guest-key (тот же домен,
@@ -9,7 +9,7 @@ export type Offer = {
   id: string;
   title: string;
   text: string;
-  state: "open" | "pending";
+  state: 'open' | 'pending';
 };
 
 export class OffersHttpError extends Error {
@@ -22,9 +22,9 @@ export class OffersHttpError extends Error {
 
 function headers(json = false): HeadersInit {
   const h: Record<string, string> = {
-    Authorization: `Bearer ${tokenStorage.getAccessToken() ?? ""}`,
+    Authorization: `Bearer ${tokenStorage.getAccessToken() ?? ''}`,
   };
-  if (json) h["Content-Type"] = "application/json";
+  if (json) h['Content-Type'] = 'application/json';
   return h;
 }
 
@@ -39,13 +39,13 @@ export async function fetchOffers(): Promise<Offer[]> {
 
 export async function claimOffer(id: string): Promise<string> {
   const url = import.meta.env.VITE_OFFERS_URL;
-  if (!url) throw new Error("offers: no url");
+  if (!url) throw new Error('offers: no url');
   const res = await fetch(`${url}/claim`, {
-    method: "POST",
+    method: 'POST',
     headers: headers(true),
     body: JSON.stringify({ id }),
   });
   if (!res.ok) throw new OffersHttpError(res.status);
   const data = (await res.json()) as { state?: string };
-  return data.state ?? "";
+  return data.state ?? '';
 }
