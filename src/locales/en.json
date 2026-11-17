@@ -7905,7 +7905,9 @@
   "blackbird": {
     "offer": {
       "button": "🎁 A special plan is available to you",
-      "pending": "⏳ Request under review"
+      "pending": "⏳ Request under review",
+      "retry": "Something went wrong, please try again",
+      "gone": "This offer is no longer available"
     },
     "endless": "no end\ndate",
     "daysLeft_one": "day\nleft",

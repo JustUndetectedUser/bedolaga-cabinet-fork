@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Карточка «уникальный тариф» на главной: open — кнопка (claim и перезапрос),
- * pending — строка состояния; пусто / ошибка / нет URL — ничего.
+ * pending — строка состояния; пусто / ошибка / нет URL — ничего. Неудачное
+ * нажатие — всплывающее сообщение, как ответ бота: сбой — «попробуйте ещё раз»,
+ * 404/409 — «больше не доступно».
  */
 
 let token: string | null = 't1';
@@ -32,15 +34,27 @@ afterEach(() => {
 
 async function renderCard() {
   const { default: PromoOfferCard } = await import('./PromoOfferCard');
+  // после vi.resetModules — тот же экземпляр модуля, что видит карточка (иначе другой контекст)
+  const { ToastProvider } = await import('@/components/Toast');
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
-      <PromoOfferCard />
+      <ToastProvider>
+        <div data-testid="card">
+          <PromoOfferCard />
+        </div>
+      </ToastProvider>
     </QueryClientProvider>,
   );
+  // container — только место карточки: область всплывающих сообщений рисует ToastProvider рядом
+  return { ...view, container: view.getByTestId('card') };
 }
+
+const BUTTON = '🎁 Вам доступен уникальный тариф';
+const RETRY = 'Не получилось, попробуйте ещё раз';
+const GONE = 'Предложение больше не доступно';
 
 const open = {
   id: 'a',
@@ -62,6 +76,50 @@ describe('PromoOfferCard', () => {
     expect(await screen.findByText('⏳ Заявка на рассмотрении')).toBeTruthy();
     expect(fetchOffers).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it.each([
+    ['сеть (fetch не дошёл)', new TypeError('Failed to fetch')],
+    ['5xx', Object.assign(new Error('offers: HTTP 502'), { status: 502 })],
+  ])(
+    'сбой нажатия (%s): «попробуйте ещё раз», перезапрос, кнопка остаётся',
+    async (_name, error) => {
+      fetchOffers.mockResolvedValue([open]);
+      claimOffer.mockRejectedValue(error);
+      await renderCard();
+      fireEvent.click(await screen.findByRole('button', { name: BUTTON }));
+      expect(await screen.findByText(RETRY)).toBeTruthy();
+      expect(screen.queryByText(GONE)).toBeNull();
+      await waitFor(() => expect(fetchOffers).toHaveBeenCalledTimes(2));
+      expect(screen.getByRole('button', { name: BUTTON })).toBeTruthy();
+    },
+  );
+
+  it.each([404, 409])(
+    'нажатие, а предложения уже нет (%s): «больше не доступно», карточка уходит',
+    async (status) => {
+      fetchOffers.mockResolvedValueOnce([open]);
+      claimOffer.mockRejectedValue(Object.assign(new Error(`offers: HTTP ${status}`), { status }));
+      const { container } = await renderCard();
+      fetchOffers.mockResolvedValue([]);
+      fireEvent.click(await screen.findByRole('button', { name: BUTTON }));
+      expect(await screen.findByText(GONE)).toBeTruthy();
+      expect(screen.queryByText(RETRY)).toBeNull();
+      await waitFor(() => expect(fetchOffers).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.queryByText('Тариф Про')).toBeNull());
+      expect(container.querySelector('button')).toBeNull();
+    },
+  );
+
+  it('удачное нажатие — без всплывающих сообщений', async () => {
+    fetchOffers.mockResolvedValueOnce([open]);
+    claimOffer.mockResolvedValue('member');
+    await renderCard();
+    fetchOffers.mockResolvedValue([]);
+    fireEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    await waitFor(() => expect(fetchOffers).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(RETRY)).toBeNull();
+    expect(screen.queryByText(GONE)).toBeNull();
   });
 
   it('pending: строка состояния без кнопки', async () => {

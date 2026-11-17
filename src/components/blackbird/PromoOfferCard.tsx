@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import { claimOffer, fetchOffers } from '@/api/blackbirdOffers';
+import { useToast } from '@/components/Toast';
 import { tokenStorage } from '@/utils/token';
 
 const KEY = ['blackbird-offers'];
@@ -14,24 +15,29 @@ const KEY = ['blackbird-offers'];
  * title/text — обычный текст, React экранирует.
  */
 export default function PromoOfferCard() {
+  // VITE_OFFERS_URL подставляется при сборке: без него ни запросов, ни опроса токена
+  if (!import.meta.env.VITE_OFFERS_URL) return null;
+  return <PromoOfferCards />;
+}
+
+function PromoOfferCards() {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const url = import.meta.env.VITE_OFFERS_URL;
 
   // Токен в ключе: обновление входа кабинетом (оно пишет только в sessionStorage,
   // сигнала в сторе нет) даёт новый ключ и перезапрос, а не карточку, скрытую
   // после 401 на минуту. Опрос раз в 5 с — копеечный (чтение sessionStorage).
   const [token, setToken] = useState(() => tokenStorage.getAccessToken());
   useEffect(() => {
-    if (!url) return;
     const timer = setInterval(() => setToken(tokenStorage.getAccessToken()), 5000);
     return () => clearInterval(timer);
-  }, [url]);
+  }, []);
 
   const { data } = useQuery({
     queryKey: [...KEY, token],
     queryFn: fetchOffers,
-    enabled: !!url && !!token,
+    enabled: !!token,
     staleTime: 60_000,
     retry: (count, err) => {
       const status = (err as { status?: number }).status;
@@ -39,12 +45,25 @@ export default function PromoOfferCard() {
     },
   });
 
+  // Неудачное нажатие — как ответ бота на кнопку: 404/409 — предложения больше
+  // нет (ссылку отозвали, решение уже принято); остальное (сеть, 5xx, истёкший
+  // вход) — «попробуйте ещё раз». Перезапрос списка — в любом случае.
   const claim = useMutation({
     mutationFn: (id: string) => claimOffer(id),
+    onError: (err) => {
+      const status = (err as { status?: number }).status;
+      const gone = status === 404 || status === 409;
+      showToast({
+        type: gone ? 'info' : 'error',
+        message: gone
+          ? t('blackbird.offer.gone', 'Предложение больше не доступно')
+          : t('blackbird.offer.retry', 'Не получилось, попробуйте ещё раз'),
+      });
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: KEY }),
   });
 
-  if (!url || !data || data.length === 0) return null;
+  if (!data || data.length === 0) return null;
 
   return (
     <>
