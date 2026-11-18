@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
 import { globeColors } from './globeColors';
+import { landingEntryPending, landingSpinFrom, releaseLandingEntry } from './landingEntry';
 import { type LoadedGlobe, loadGlobe } from './loadGlobe';
 
 /** Окно меньше 1024 px по ширине — телефонный вид: не больше 30 кадров/с (cabinetView меняет вид там же). */
@@ -58,6 +59,8 @@ function createLayer(g: LoadedGlobe): Layer | null {
       dataUrl: g.dataUrl,
       servers: g.servers,
       spin: 5,
+      // Пришли с лендинга: вращение дальше с его долготы (иначе — от часов).
+      spinFrom: landingSpinFrom(),
       tilt: 30,
       labels: false,
       nav: 'none',
@@ -73,6 +76,9 @@ function createLayer(g: LoadedGlobe): Layer | null {
       zoom: (w, h) => g.cabinetView(w, h).zoom,
       onReady: () => {
         layer.ready = true;
+        // Вход с лендинга: #root ещё скрыт, глобус лендинга только что стоял на
+        // этом месте — появиться сразу, без проявления.
+        if (landingEntryPending()) el.classList.add('bb-globe-layer--instant');
         el.classList.add('is-ready');
         if (layer.users > 0) document.body.classList.add('bb-globe-on');
         for (const cb of layer.readyCbs) cb();
@@ -80,6 +86,7 @@ function createLayer(g: LoadedGlobe): Layer | null {
     });
   } catch {
     el.remove();
+    releaseLandingEntry();
     return null;
   }
 
@@ -89,6 +96,7 @@ function createLayer(g: LoadedGlobe): Layer | null {
     if (!layer.globe.failed) return;
     broken = true;
     destroyLayer(layer);
+    releaseLandingEntry();
   });
   failObserver.observe(el, { childList: true });
 
@@ -187,15 +195,21 @@ function take(layer: Layer, onReady: () => void): () => void {
  * keepOnly — для скелетона «Главной»: только удерживает слой, который уже
  * есть (пришли со входа — глобус стоит, пока грузятся данные), и ничего не
  * грузит и не создаёт (холодная загрузка — глобус после содержимого, как без
- * keepOnly на самом содержимом).
+ * keepOnly на самом содержимом). Кроме входа с лендинга (landingEntry.ts): там
+ * #root скрыт, пока глобус не нарисован, и скелетон строит его сам, не дожидаясь
+ * ответа API.
+ *
+ * Первый кадр глобуса снимает ожидание входа с лендинга (releaseLandingEntry).
  */
 export function CabinetGlobe({
   onReady,
-  keepOnly = false,
+  keepOnly: keepOnlyProp = false,
 }: {
   onReady?: () => void;
   keepOnly?: boolean;
 }): null {
+  const [entry] = useState(landingEntryPending);
+  const keepOnly = keepOnlyProp && !entry;
   const [globe, setGlobe] = useState<LoadedGlobe | null>(() => known);
   const onReadyRef = useRef(onReady);
   useEffect(() => {
@@ -216,7 +230,10 @@ export function CabinetGlobe({
   }, [globe, keepOnly]);
 
   useEffect(() => {
-    const ready = () => onReadyRef.current?.();
+    const ready = () => {
+      releaseLandingEntry();
+      onReadyRef.current?.();
+    };
     const release = keepOnly ? keep(ready) : globe ? acquire(globe, ready) : null;
     return release ?? undefined;
   }, [globe, keepOnly]);

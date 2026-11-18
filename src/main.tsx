@@ -36,6 +36,12 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/inter-tight';
 import './styles/globals.css';
 import './styles/blackbird.css';
+// BlackBird: вход с лендинга
+import { captureLandingEntry } from './components/blackbird/globe/landingEntry';
+
+// BlackBird: метка входа с лендинга (?from=landing) — самым первым делом, до
+// роутера (его переход на /login её потерял бы) и до первой отрисовки.
+captureLandingEntry(window);
 
 // Harden the global encoders against lone UTF-16 surrogates (truncated emoji in
 // backend names/remarks) BEFORE anything renders or fetches — otherwise such a

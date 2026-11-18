@@ -325,3 +325,109 @@ describe('CabinetGlobe', () => {
     expect(offEvent).toHaveBeenCalledWith('activated', handlers.activated);
   });
 });
+
+describe('CabinetGlobe: вход с лендинга (landingEntry)', () => {
+  const NOW = Date.UTC(2026, 10, 18, 12, 0, 0);
+  const html = () => document.documentElement.classList;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(NOW);
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: false, media: q }));
+    history.replaceState(null, '', `/?from=landing&lon=40.5&t=${NOW - 300}`);
+  });
+
+  afterEach(() => {
+    history.replaceState(null, '', '/');
+  });
+
+  async function capture() {
+    const { captureLandingEntry } = await import('./landingEntry');
+    expect(captureLandingEntry(window)).toBe('dark');
+  }
+
+  it('глобус входа продолжает вращение лендинга: spinFrom из метки', async () => {
+    await capture();
+    await mount();
+    expect(ctor.mock.calls[0][1]).toMatchObject({ spinFrom: { lon: 40.5, at: NOW - 300 } });
+  });
+
+  it('без входа: spinFrom нет (долгота от часов)', async () => {
+    await mount();
+    expect((ctor.mock.calls[0][1] as Options).spinFrom ?? null).toBeNull();
+  });
+
+  it('нарисован во время ожидания: появляется сразу (без проявления 0,6 с), #root проявляется', async () => {
+    await capture();
+    const onReady = vi.fn();
+    await mount((G) => <G onReady={onReady} />);
+    const layer = layers()[0];
+    expect(html().contains('bb-entry')).toBe(true);
+    act(() => instances[0].options.onReady());
+    expect(layer.classList.contains('bb-globe-layer--instant')).toBe(true);
+    expect(layer.classList.contains('is-ready')).toBe(true);
+    expect(html().contains('bb-entry')).toBe(false);
+    expect(html().contains('bb-entry-in')).toBe(true);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it('StrictMode: onReady страницы дважды — ожидание снято один раз, без ошибок', async () => {
+    await capture();
+    await mount((G) => (
+      <StrictMode>
+        <G />
+      </StrictMode>
+    ));
+    act(() => instances[0].options.onReady());
+    expect(html().contains('bb-entry')).toBe(false);
+    expect(layers()).toHaveLength(1);
+  });
+
+  it('опоздал (позже 600 мс): #root уже виден, глобус проявляется как обычно', async () => {
+    await capture();
+    await mount();
+    vi.advanceTimersByTime(600);
+    expect(html().contains('bb-entry')).toBe(false);
+    act(() => instances[0].options.onReady());
+    expect(layers()[0].classList.contains('bb-globe-layer--instant')).toBe(false);
+    expect(layers()[0].classList.contains('is-ready')).toBe(true);
+  });
+
+  it('скелетон «Главной» во время входа создаёт глобус сам: ожидание не зависит от API', async () => {
+    await capture();
+    await mount((G) => <G keepOnly />);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(layers()).toHaveLength(1);
+  });
+
+  it('скелетон после входа (ожидание снято) — снова только держит', async () => {
+    await capture();
+    vi.advanceTimersByTime(600);
+    await mount((G) => <G keepOnly />);
+    expect(ctor).not.toHaveBeenCalled();
+    expect(layers()).toHaveLength(0);
+  });
+
+  it('данные не загрузились во время входа: ожидание снято сразу', async () => {
+    await capture();
+    await mount();
+    await act(async () => instances[0].fail());
+    expect(layers()).toHaveLength(0);
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+
+  it('конструктор упал во время входа: ожидание снято сразу', async () => {
+    loadGlobeMock.mockResolvedValue({
+      ...LOADED,
+      BBGlobe: class {
+        constructor() {
+          throw new Error('no 2d context');
+        }
+      },
+    });
+    await capture();
+    await mount();
+    expect(layers()).toHaveLength(0);
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+});

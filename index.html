@@ -177,6 +177,25 @@
         document.head.appendChild(link);
       })();
     </script>
+    <script data-hint="landing-entry">
+      // BlackBird: вход с лендинга (?from=landing). Лендинг погас в чёрный, и
+      // первая отрисовка кабинета тоже чёрная: иначе до бандла шёл бы фон темы
+      // (светлый у светлой темы, тёмно-синий сборки, пока нет палитры) —
+      // вспышка между двумя чёрными кадрами. Дальше ведёт landingEntry.ts
+      // (main.tsx), он и снимает класс. «Уменьшить движение» — входа нет.
+      (() => {
+        try {
+          if (new URLSearchParams(location.search).get('from') !== 'landing') return;
+          if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+          const style = document.createElement('style');
+          style.textContent = 'html.bb-entry-black body{background-color:#000}';
+          document.head.appendChild(style);
+          document.documentElement.classList.add('bb-entry-black');
+        } catch {
+          // что-то не так — первая отрисовка как обычно
+        }
+      })();
+    </script>
     <script>
       // Имя бренда до первой отрисовки — без шагов при установке.
       //

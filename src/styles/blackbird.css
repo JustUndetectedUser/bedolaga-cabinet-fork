@@ -181,3 +181,59 @@ h3 {
     box-shadow: 0 0 28px 12px rgba(var(--color-dark-950), 0.5);
   }
 }
+
+/* Вход с лендинга (src/components/blackbird/globe/landingEntry.ts). Тёмная
+   тема: пока глобус не нарисован (не дольше 0,6 с), #root прозрачен и не
+   принимает нажатий: на экране фон и глобус, как только что на лендинге.
+   Потом содержимое проявляется за 0,4 с (bb-entry-in). */
+html.bb-entry #root {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html.bb-entry-in #root {
+  transition: opacity 0.4s ease-out;
+}
+
+/* Глобус, нарисованный во время ожидания, появляется сразу: он продолжает
+   глобус лендинга на том же месте. Опоздавший проявляется как обычно. */
+.bb-globe-layer.bb-globe-layer--instant {
+  transition: none;
+}
+
+/* У лендинга глобус начинается под его шапкой (72 px), шапка погасла в чёрный.
+   Слой кабинета — на всё окно: без этой полосы точки над 72 px появились бы
+   резкой полосой в момент смены страницы. Полоса цвета фона слоя (inherit:
+   модуль ставит его слою сам, это цвет, в который растворяются края глобуса)
+   закрывает их и гаснет вместе с проявлением содержимого. */
+html.bb-entry .bb-globe-layer::after,
+html.bb-entry-in .bb-globe-layer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  background-color: inherit;
+}
+
+html.bb-entry-in .bb-globe-layer::after {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+/* Светлая тема: глобус не ждём и не передаём. Лендинг погас в чёрный, не зная
+   темы кабинета; чёрная накладка продолжает его и гаснет за 0,4 с после первой
+   отрисовки приложения. */
+.bb-entry-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background-color: #000;
+  pointer-events: none;
+}
+
+.bb-entry-veil.is-out {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
