@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly VITE_OFFERS_URL?: string;
   /** BlackBird: страница приглашений для админов (сервис guest-key) — пункт в «Пользователях» админки. */
   readonly VITE_INVITE_URL?: string;
+  /** BlackBird: база файлов глобуса на домене кабинета (/bb-globe/): «Главная» и вход. Пусто — без глобуса. */
+  readonly VITE_GLOBE_BASE?: string;
   /** Optional override for the backend liveness URL (defaults to `<origin>/health/unified`). */
   readonly VITE_HEALTH_URL?: string;
 }

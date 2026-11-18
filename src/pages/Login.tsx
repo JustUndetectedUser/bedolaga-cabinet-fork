@@ -28,6 +28,8 @@ import { UsersIcon, EmailIcon, RefreshIcon, ChevronDownIcon } from '@/components
 import { CheckEmailCard } from '@/components/auth/CheckEmailCard';
 import LegalFooter from '../components/LegalFooter';
 import GuestKeyLink from '../components/blackbird/GuestKeyLink';
+// BlackBird: глобус фоном экрана входа
+import { CabinetGlobe } from '../components/blackbird/globe/CabinetGlobe';
 import LegalConsent from '../components/LegalConsent';
 import LegalConsentGate from '../components/LegalConsentGate';
 import { useLegalConsentGate } from '../hooks/useLegalConsentGate';
@@ -427,7 +429,9 @@ export default function Login() {
         <LanguageSwitcher />
       </div>
 
-      <div className="relative w-full max-w-md space-y-5">
+      <div className="bb-globe-shade relative w-full max-w-md space-y-5">
+        {/* BlackBird: глобус фоном и тень под колонкой (bb-globe-shade) */}
+        <CabinetGlobe />
         {/* Logo & branding */}
         <div className="text-center">
           <div className="bb-logo relative mx-auto mb-3 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-dark-700/50 bg-dark-800/80 shadow-md">

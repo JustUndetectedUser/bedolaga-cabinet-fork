@@ -157,6 +157,27 @@
       })();
     </script>
     <script>
+      // BlackBird: глобус фоном «Главной» и экрана входа. Список стран
+      // (config.json) запрашивается сразу, параллельно с бандлом, и только на
+      // этих двух адресах: на остальных он не нужен, а неиспользованный preload —
+      // лишний запрос и предупреждение в консоли. as=fetch + crossorigin
+      // (anonymous) дают режим cors и credentials same-origin — как у fetch() без
+      // параметров в loadGlobe.ts, поэтому браузер отдаёт ему предзагруженный
+      // ответ, второго запроса нет. Базу (VITE_GLOBE_BASE) подставляет Vite при
+      // сборке; без переменной (пусто или не подставлено) глобуса нет.
+      (() => {
+        const base = '%VITE_GLOBE_BASE%';
+        const path = location.pathname;
+        if (!base || base.charAt(0) === '%' || (path !== '/' && path !== '/login')) return;
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'fetch';
+        link.crossOrigin = 'anonymous';
+        link.href = `${base}config.json`;
+        document.head.appendChild(link);
+      })();
+    </script>
+    <script>
       // Имя бренда до первой отрисовки — без шагов при установке.
       //
       // Имя живёт у бота, а страница у всех вариантов установки одна и та же

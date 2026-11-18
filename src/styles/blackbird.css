@@ -103,3 +103,81 @@ h3 {
   background: transparent;
   box-shadow: none;
 }
+
+/* Глобус фоном «Главной» и экрана входа (src/components/blackbird/globe/,
+   макет D2). Слой лежит в body: под содержимым и шапкой, над фоном страницы;
+   клики проходят насквозь. Высота 100lvh: адресная строка телефона, появляясь
+   и пропадая, не меняет размер слоя, и глобус не пересчитывается. 100vh — для
+   старых WebView без lvh (у них vh и так большой вьюпорт). Появляется мягко,
+   когда нарисован первый кадр (is-ready); на телефоне приглушён. */
+.bb-globe-layer {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  overflow: hidden;
+  contain: strict;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease-out;
+}
+
+.bb-globe-layer.is-ready {
+  opacity: 1;
+}
+
+@media (max-width: 1023px) {
+  .bb-globe-layer.is-ready {
+    opacity: 0.6;
+  }
+}
+
+/* Свёрнутый Mini App: слой за экраном — модуль не рисует то, чего не видно,
+   а размер слоя не меняется (без пересчёта при возвращении). */
+.bb-globe-layer--paused {
+  transform: translateX(-200%);
+}
+
+/* Страница ушла: слой спрятан, пока его не заберёт следующая или он не удалится. */
+.bb-globe-layer--parked {
+  visibility: hidden;
+}
+
+/* Таблица стилей модуля (bb-globe.css лендинга) в кабинет не грузится: здесь
+   только холст. Остальное (список стран для диктора) не нужно: слой
+   декоративный. */
+.bb-globe-layer .bbg-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bb-globe-layer > :not(.bbg-canvas) {
+  display: none;
+}
+
+/* Тень под колонкой содержимого: глобус под текстом приглушён, справа — в
+   полную силу. Цвет — фон страницы (--color-dark-950: в тёмной теме чёрный,
+   в светлой — её фон), поэтому одно правило на обе темы. Это фон и тень самой
+   колонки, а не слой с z-index: рисуется между глобусом и текстом без своего
+   контекста наложения, окна и меню внутри колонки не меняются. Только пока
+   глобус нарисован (bb-globe-on на body): без глобуса колонка как была. */
+.bb-globe-on .bb-globe-shade {
+  background-image: radial-gradient(
+    closest-side,
+    rgba(var(--color-dark-950), 0.78),
+    rgba(var(--color-dark-950), 0.62)
+  );
+  box-shadow: 0 0 64px 24px rgba(var(--color-dark-950), 0.62);
+}
+
+@media (max-width: 1023px) {
+  .bb-globe-on .bb-globe-shade {
+    background-image: none;
+    background-color: rgba(var(--color-dark-950), 0.5);
+    box-shadow: 0 0 28px 12px rgba(var(--color-dark-950), 0.5);
+  }
+}

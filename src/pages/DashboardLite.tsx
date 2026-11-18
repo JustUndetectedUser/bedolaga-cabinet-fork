@@ -20,6 +20,8 @@ import { formatTraffic } from '@/utils/formatTraffic';
 import { liteStatus, type LiteAction } from '@/utils/liteStatus';
 // BlackBird: карточка уникального тарифа
 import PromoOfferCard from '@/components/blackbird/PromoOfferCard';
+// BlackBird: глобус фоном «Главной»
+import { CabinetGlobe } from '@/components/blackbird/globe/CabinetGlobe';
 
 /**
  * Единственное главное действие экрана — ссылкой или кнопкой, вид один.
@@ -204,7 +206,9 @@ export default function DashboardLite() {
   // подписка пропала. Молчание здесь хуже ошибки.
   if (listFailed || subFailed) {
     return (
-      <div className="mx-auto w-full max-w-lg pt-8">
+      <div className="bb-globe-shade mx-auto w-full max-w-lg pt-8">
+        {/* BlackBird: глобус фоном и тень под колонкой (bb-globe-shade) */}
+        <CabinetGlobe />
         <div role="alert">
           <h1 className="text-[28px] font-bold leading-[1.15] tracking-tight text-dark-50">
             {t('lite.error.load', 'Не удалось загрузить данные')}
@@ -260,7 +264,9 @@ export default function DashboardLite() {
   const devicesUsed = devices?.total ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-lg">
+    <div className="bb-globe-shade mx-auto w-full max-w-lg">
+      {/* BlackBird: глобус фоном и тень под колонкой (bb-globe-shade) */}
+      <CabinetGlobe />
       {/* BlackBird: карточки уникальных тарифов промогрупп */}
       <div className="space-y-3 pt-4 empty:hidden">
         <PromoOfferCard />

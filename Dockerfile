@@ -27,6 +27,8 @@ ARG VITE_GUEST_URL=
 ARG VITE_INVITE_URL=
 # BlackBird: уникальные тарифы промогрупп — карточка на главной
 ARG VITE_OFFERS_URL=
+# BlackBird: файлы глобуса на домене кабинета (роль front) — фон «Главной» и экрана входа
+ARG VITE_GLOBE_BASE=
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL
@@ -38,6 +40,7 @@ ENV VITE_LANDING_URL=$VITE_LANDING_URL
 ENV VITE_GUEST_URL=$VITE_GUEST_URL
 ENV VITE_INVITE_URL=$VITE_INVITE_URL
 ENV VITE_OFFERS_URL=$VITE_OFFERS_URL
+ENV VITE_GLOBE_BASE=$VITE_GLOBE_BASE
 
 # Build the application. Type-check намеренно пропущен: tsc --noEmit уже
 # гоняется CI на каждый PR (lint.yml), образ собирается из проверенного

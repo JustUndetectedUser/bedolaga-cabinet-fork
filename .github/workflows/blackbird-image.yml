@@ -68,3 +68,4 @@ jobs:
             VITE_GUEST_URL=/guest
             VITE_INVITE_URL=/invite/admin
             VITE_OFFERS_URL=/invite/offers
+            VITE_GLOBE_BASE=/bb-globe/

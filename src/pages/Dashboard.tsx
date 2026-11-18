@@ -30,6 +30,8 @@ import { safeLocal } from '../utils/safeStorage';
 import { getApiErrorMessage } from '../utils/api-error';
 // BlackBird: карточка уникального тарифа
 import PromoOfferCard from '../components/blackbird/PromoOfferCard';
+// BlackBird: глобус фоном «Главной»
+import { CabinetGlobe } from '../components/blackbird/globe/CabinetGlobe';
 
 export default function Dashboard() {
   const { t } = useTranslation();
@@ -294,7 +296,9 @@ export default function Dashboard() {
   const userName = displayName(user);
 
   return (
-    <div className="space-y-6">
+    <div className="bb-globe-shade space-y-6">
+      {/* BlackBird: глобус фоном и тень под колонкой (bb-globe-shade) */}
+      <CabinetGlobe />
       {/* BlackBird: карточки уникальных тарифов промогрупп */}
       <PromoOfferCard />
       {/* Header */}
