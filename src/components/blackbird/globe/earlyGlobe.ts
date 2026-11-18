@@ -6,11 +6,16 @@ import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
  * config.json, модуль и данные (только сеть), а слой .bb-globe-layer строит сам,
  * как только приложение отрисовалось (первый узел в #root): первую отрисовку он
  * не задерживает, а страницы не ждёт. После первого кадра глобус стоит (hold),
- * пока его не заберёт страница. Здесь — его описание и то, как его забирают:
+ * пока его не заберёт страница; с точками на GPU (кадр дешёвый) он не стоит, а
+ * сразу продолжает перелёт и вращение лендинга. Здесь — его описание и то, как
+ * его забирают:
  * loadGlobe берёт config и модуль (второго запроса нет), CabinetGlobe — сам слой
  * (тот же холст) и запускает вращение, landingEntry на конце входа гасит не
  * забранный и убирает его, если его так никто и не взял.
  */
+
+/** Проявление слоя (blackbird.css, .bb-globe-layer: 0,6 с) и запас: погасший слой уезжает за экран после него. */
+const UNCLAIMED_FADE_MS = 700;
 
 /** Слой, построенный инлайн-скриптом. */
 export interface EarlyLayer {
@@ -80,6 +85,14 @@ export function settleEarlyLayer(): void {
   }
   layer.faded = true;
   layer.el.classList.remove('bb-globe-layer--instant', 'is-ready');
+  // С точками на GPU глобус не стоит (index.html снимает hold сразу): погасший
+  // уезжает за экран, как у свёрнутого Mini App, — модуль не рисует то, чего не
+  // видно. Заберёт страница — её обвязка (wrapLayer) вернёт слой на место.
+  if (layer.globe.gpu) {
+    setTimeout(() => {
+      if (!early.adopted && !early.dropped) layer.el.classList.add('bb-globe-layer--paused');
+    }, UNCLAIMED_FADE_MS);
+  }
 }
 
 /** Бросить слой, который никто не взял: глобус уничтожен, слой убран. */

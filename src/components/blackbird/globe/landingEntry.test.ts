@@ -98,6 +98,14 @@ describe('captureLandingEntry: тёмная тема', () => {
     expect(here()).toBe('/');
   });
 
+  it('fly (перелёт глобуса для index.html) — тоже метка: убирается', async () => {
+    go(`/?from=landing&lon=-3.5&t=${NOW}&fly=1181.0,567.4,840.0,49.00,600&x=1`);
+    const { captureLandingEntry, landingSpinFrom } = await entry();
+    expect(captureLandingEntry(window)).toBe('dark');
+    expect(here()).toBe('/?x=1');
+    expect(landingSpinFrom()).toEqual({ lon: -3.5, at: NOW });
+  });
+
   it('глобус начинает грузиться сразу', async () => {
     go('/?from=landing');
     const { captureLandingEntry } = await entry();

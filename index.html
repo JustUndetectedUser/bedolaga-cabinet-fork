@@ -206,6 +206,21 @@
           const lon = num(q.get('lon'));
           const at = num(q.get('t'));
           const ok = Number.isFinite(lon) && Number.isFinite(at) && Math.abs(at - Date.now()) <= 600000;
+          // Перелёт: глобус лендинга по нажатию летит на место глобуса кабинета, а
+          // браузер меняет страницу посреди перелёта. Лендинг передаёт, где его глобус
+          // стоял в момент нажатия и сколько длится перелёт (fly=x,y,R,lat,ms: центр в
+          // окне и радиус в px, широта вида, мс). Рисовал он, пока не пришёл первый
+          // байт ответа кабинета (cut). Глобус кабинета продолжает с того кадра,
+          // который лендинг показал последним (опция arrive модуля): перелёт — с той
+          // же точки, вращение — с той же долготы. Без этого он вставал сразу на место:
+          // рывок, если страница сменилась посреди перелёта.
+          const fly = (q.get('fly') || '').split(',').map(num);
+          const nav = performance.getEntriesByType?.('navigation')[0];
+          const cut = nav?.responseStart > 0 ? Date.now() - (performance.now() - nav.responseStart) : Number.NaN;
+          const arrive =
+            ok && fly.length === 5 && fly.every(Number.isFinite) && fly[2] > 0 && fly[4] > 0 && Number.isFinite(cut)
+              ? { x: fly[0], y: fly[1], R: fly[2], lat: fly[3], at, ms: fly[4], cut }
+              : null;
           const early = { base, layer: null, adopted: false, dropped: false };
           window.__bbGlobeEarly = early;
           early.load = fetch(`${base}config.json`)
@@ -265,6 +280,8 @@
                 servers: c.servers,
                 spin: 5,
                 spinFrom: ok ? { lon, at } : null,
+                // перелёт лендинга — дальше с того места, где он его оборвал
+                arrive,
                 tilt: 30,
                 labels: false,
                 nav: 'none',
@@ -291,6 +308,10 @@
                 },
               });
               early.layer = layer;
+              // Точки суши на GPU (модуль решает сам, свойство gpu): кадр стоит около
+              // 1,5 мс и запуску приложения не мешает — глобус не стоит до страницы, а
+              // сразу продолжает перелёт и вращение. Без GPU — стоит, как раньше.
+              if (layer.globe.gpu) layer.globe.resume?.();
             } catch {
               el.remove();
             }

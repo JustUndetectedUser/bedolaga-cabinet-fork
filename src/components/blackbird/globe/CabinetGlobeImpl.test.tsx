@@ -38,6 +38,8 @@ const instances: {
   fail: () => void;
 }[] = [];
 const ctor = vi.fn();
+/** Как модуль с точками суши на GPU (WebGL): свойство gpu следующих глобусов. */
+let gpuDots = false;
 
 class FakeGlobe {
   setColors = vi.fn();
@@ -45,6 +47,7 @@ class FakeGlobe {
   resume = vi.fn();
   still = false;
   failed = false;
+  gpu = gpuDots;
   constructor(root: HTMLElement, options: Options) {
     ctor(root, options);
     root.appendChild(document.createElement('canvas'));
@@ -78,6 +81,7 @@ const LOADED = {
 beforeEach(() => {
   vi.resetModules();
   instances.length = 0;
+  gpuDots = false;
   ctor.mockReset();
   loadGlobeMock.mockReset();
   loadGlobeMock.mockResolvedValue(LOADED);
@@ -680,12 +684,15 @@ describe('ранний глобус: index.html строит слой до React
       const [, b] = ctor.mock.calls[1] as [HTMLElement, Options];
       const plain = (o: Options) =>
         Object.fromEntries(Object.entries(o).filter(([, v]) => typeof v !== 'function'));
-      // ранний ждёт страницу (hold), остальное — то же
-      const { hold, ...rest } = plain(a);
+      // ранний ждёт страницу (hold) и продолжает перелёт лендинга (arrive: в этой
+      // метке его нет), остальное — то же
+      const { hold, arrive, ...rest } = plain(a);
       expect(hold).toBe(true);
+      expect(arrive).toBeNull();
       expect(b.hold).toBeUndefined();
+      expect(b.arrive).toBeUndefined();
       expect(rest).toEqual(plain(b));
-      expect(Object.keys(a).sort()).toEqual([...Object.keys(b), 'hold'].sort());
+      expect(Object.keys(a).sort()).toEqual([...Object.keys(b), 'hold', 'arrive'].sort());
       for (const [x, y] of [
         [1440, 900],
         [390, 844],
@@ -695,6 +702,118 @@ describe('ранний глобус: index.html строит слой до React
       expect(a.spinFrom).toEqual({ lon: 40.5, at: NOW - 300 });
     },
   );
+
+  describe('перелёт лендинга (fly в метке)', () => {
+    const FLY = 'fly=1181.0,567.4,840.0,49.00,600';
+    /** Ответ кабинета начал приходить на 180-й мс навигации, сейчас 400-я: лендинг перестал рисовать 220 мс назад. */
+    function navigated(responseStart: number | null = 180, now = 400) {
+      vi.spyOn(performance, 'now').mockReturnValue(now);
+      vi.spyOn(performance, 'getEntriesByType').mockReturnValue(
+        responseStart === null ? [] : ([{ responseStart }] as unknown as PerformanceEntryList),
+      );
+    }
+    const arrive = () => (ctor.mock.calls[0][1] as Options).arrive;
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('arrive: где стоял глобус лендинга, когда начался перелёт и когда лендинг перестал рисовать', async () => {
+      navigated();
+      await inlineBuilt(`/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`);
+      expect(arrive()).toEqual({
+        x: 1181,
+        y: 567.4,
+        R: 840,
+        lat: 49,
+        at: NOW - 300,
+        ms: 600,
+        cut: NOW - 220,
+      });
+      expect((ctor.mock.calls[0][1] as Options).spinFrom).toEqual({ lon: 40.5, at: NOW - 300 });
+    });
+
+    it.each([
+      ['четыре числа', 'fly=1181.0,567.4,840.0,49.00'],
+      ['шесть чисел', 'fly=1,2,3,4,5,6'],
+      ['не число', 'fly=1181.0,abc,840.0,49.00,600'],
+      ['пустое число', 'fly=1181.0,,840.0,49.00,600'],
+      ['радиус 0', 'fly=1181.0,567.4,0,49.00,600'],
+      ['длительность 0', 'fly=1181.0,567.4,840.0,49.00,0'],
+      ['пусто', 'fly='],
+    ])('%s: перелёта нет (глобус сразу на месте), вращение — как раньше', async (_, fly) => {
+      navigated();
+      await inlineBuilt(`/?from=landing&lon=40.5&t=${NOW - 300}&${fly}`);
+      expect(arrive()).toBeNull();
+      expect((ctor.mock.calls[0][1] as Options).spinFrom).toEqual({ lon: 40.5, at: NOW - 300 });
+    });
+
+    it('без lon и t перелёт не продолжить: arrive нет', async () => {
+      navigated();
+      await inlineBuilt(`/?from=landing&${FLY}`);
+      expect(arrive()).toBeNull();
+    });
+
+    it.each([
+      ['нет записи о навигации', null],
+      ['ответ ещё не отмечен', 0],
+    ])('%s: когда лендинг перестал рисовать, неизвестно — arrive нет', async (_, responseStart) => {
+      navigated(responseStart);
+      await inlineBuilt(`/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`);
+      expect(arrive()).toBeNull();
+    });
+
+    it('точки на GPU: глобус не ждёт страницу — hold снят сразу, до первого кадра', async () => {
+      gpuDots = true;
+      navigated();
+      await inlineBuilt(`/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`);
+      expect(instances[0].options.hold).toBe(true);
+      expect(instances[0].resume).toHaveBeenCalledTimes(1);
+    });
+
+    it('без GPU: стоит до страницы, как раньше', async () => {
+      navigated();
+      await inlineBuilt(`/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`);
+      expect(instances[0].resume).not.toHaveBeenCalled();
+    });
+
+    it('точки на GPU, конец входа, страница слой не забрала: погасший уезжает за экран; забрала — на месте', async () => {
+      gpuDots = true;
+      await inlineBuilt();
+      act(() => instances[0].options.onReady());
+      await capture();
+      const layer = layers()[0];
+      vi.advanceTimersByTime(600);
+      expect(layer.classList.contains('is-ready')).toBe(false);
+      // гаснет переходом прозрачности (0,6 с) — за экран только после него
+      expect(layer.classList.contains('bb-globe-layer--paused')).toBe(false);
+      vi.advanceTimersByTime(700);
+      expect(layer.classList.contains('bb-globe-layer--paused')).toBe(true);
+      await mount();
+      expect(layers()[0]).toBe(layer);
+      expect(layer.classList.contains('bb-globe-layer--paused')).toBe(false);
+      expect(layer.classList.contains('is-ready')).toBe(true);
+    });
+
+    it('точки на GPU, страница забрала слой до конца угасания: за экран он не уезжает', async () => {
+      gpuDots = true;
+      await inlineBuilt();
+      act(() => instances[0].options.onReady());
+      await capture();
+      vi.advanceTimersByTime(600);
+      await mount();
+      vi.advanceTimersByTime(700);
+      expect(layers()[0].classList.contains('bb-globe-layer--paused')).toBe(false);
+    });
+
+    it('без GPU погасший слой остаётся на месте (он и так не рисует: hold)', async () => {
+      await inlineBuilt();
+      act(() => instances[0].options.onReady());
+      await capture();
+      vi.advanceTimersByTime(600 + 700);
+      expect(layers()[0].classList.contains('bb-globe-layer--paused')).toBe(false);
+    });
+  });
 
   it('не «/» и не «/login»: глобус не строится (чёрная первая отрисовка — да)', async () => {
     await inlineBuilt('/subscriptions?from=landing');

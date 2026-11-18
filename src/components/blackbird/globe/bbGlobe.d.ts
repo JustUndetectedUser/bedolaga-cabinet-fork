@@ -55,6 +55,21 @@ export interface BBGlobeOptions {
   onReady?: (() => void) | null;
   /** после первого полного кадра — ни одного, пока не resume() (ранний глобус входа с лендинга) */
   hold?: boolean;
+  /**
+   * Перелёт, начатый страницей до этой (лендинг, flyTo): где её глобус стоял в начале
+   * (x, y, R в px корня, lat — широта вида), когда перелёт начался (at) и сколько длится
+   * (ms), когда та страница перестала рисовать (cut); время — Date.now(). Первый кадр —
+   * то, что она показала последним; дальше перелёт и вращение идут с этого места.
+   */
+  arrive?: {
+    x: number;
+    y: number;
+    R: number;
+    lat: number;
+    at: number;
+    ms: number;
+    cut: number;
+  } | null;
   focusX?: GlobeNumber;
   focusY?: GlobeNumber;
   zoom?: GlobeNumber;
@@ -65,6 +80,8 @@ export interface BBGlobeInstance {
   readonly still: boolean;
   /** данные не загрузились: глобус уничтожил себя сам */
   readonly failed?: boolean;
+  /** точки суши рисует GPU (WebGL): кадр дешёвый (нет у модуля до GPU — потому необязателен) */
+  readonly gpu?: boolean;
   setColors(colors: Partial<GlobeColors>): void;
   /** конец hold: вращение дальше с того места, где стоял (нет у модуля до hold — потому необязателен) */
   resume?(): void;
