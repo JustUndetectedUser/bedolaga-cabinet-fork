@@ -99,14 +99,22 @@ afterEach(() => {
 
 type Globe = React.ComponentType<{ onReady?: () => void; keepOnly?: boolean }>;
 
+/** Дождаться динамических import() и разобрать цепочку промисов за ними (несколько кругов: import → then → import). */
+async function settle() {
+  for (let round = 0; round < 3; round++) {
+    await vi.dynamicImportSettled();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+  }
+}
+
 async function mount(ui?: (G: Globe) => React.ReactElement) {
   const { CabinetGlobe } = await import('./CabinetGlobeImpl');
   const view = render(ui ? ui(CabinetGlobe) : <CabinetGlobe />);
-  // loadGlobe — промис: даём ему разрешиться и React — отрисовать (несколько
-  // микрозадач: вход с лендинга грузит модули динамически в том же графе)
-  await act(async () => {
-    for (let i = 0; i < 5; i++) await Promise.resolve();
-  });
+  // loadGlobe — промис: даём ему разрешиться и React — отрисовать. Вход с
+  // лендинга грузит модули динамически в том же графе: под нагрузкой (CI) их
+  // загрузка занимает больше микрозадач, чем фиксированный счёт, поэтому ждём
+  // сами загрузки (vi.dynamicImportSettled), а потом разбираем цепочку промисов.
+  await act(settle);
   return { ...view, CabinetGlobe };
 }
 
@@ -177,7 +185,7 @@ describe('CabinetGlobe', () => {
     document.body.style.color = 'rgb(17, 24, 39)';
     document.documentElement.className = 'light';
     // MutationObserver — микрозадача
-    await act(async () => {});
+    await act(settle);
     expect(instances[0].setColors).toHaveBeenCalledWith({
       dot: 'rgb(17, 24, 39)',
       ring: 'rgba(17, 24, 39, 0.85)',
@@ -187,7 +195,7 @@ describe('CabinetGlobe', () => {
     expect(ctor).toHaveBeenCalledTimes(1);
     // атрибут поменялся, а цвета те же — повторно не перекрашивает
     document.documentElement.setAttribute('style', '--x: 1');
-    await act(async () => {});
+    await act(settle);
     expect(instances[0].setColors).toHaveBeenCalledTimes(1);
   });
 
@@ -197,7 +205,7 @@ describe('CabinetGlobe', () => {
     act(() => instances[0].options.onReady());
     unmount();
     // микрозадача: раньше отрисовки, но после эффектов страницы, которая может забрать слой
-    await act(async () => {});
+    await act(settle);
     const layer = layers()[0];
     expect(layer.classList.contains('bb-globe-layer--parked')).toBe(true);
     expect(document.body.classList.contains('bb-globe-on')).toBe(false);
@@ -254,7 +262,7 @@ describe('CabinetGlobe', () => {
     expect(layers()).toHaveLength(0);
     expect(document.body.classList.contains('bb-globe-on')).toBe(false);
     rerender(<CabinetGlobe key="b" />);
-    await act(async () => {});
+    await act(settle);
     expect(layers()).toHaveLength(0);
     expect(ctor).toHaveBeenCalledTimes(1);
   });
@@ -273,12 +281,12 @@ describe('CabinetGlobe', () => {
     watch.observe(layer, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
     // «Главная» в DashboardLite: скелетон и содержимое — один и тот же CabinetGlobe, keepOnly снимается
     rerender(<CabinetGlobe key="home" keepOnly />);
-    await act(async () => {});
+    await act(settle);
     vi.advanceTimersByTime(250);
     rerender(<CabinetGlobe key="home" />);
-    await act(async () => {});
+    await act(settle);
     vi.advanceTimersByTime(1000);
-    await act(async () => {});
+    await act(settle);
     watch.disconnect();
     expect(classes.filter((c) => c.includes('bb-globe-layer--parked'))).toEqual([]);
     expect(layers()).toHaveLength(1);
@@ -296,7 +304,7 @@ describe('CabinetGlobe', () => {
     expect(ctor).not.toHaveBeenCalled();
     // данные пришли: тот же компонент без keepOnly грузит и строит глобус
     rerender(<CabinetGlobe key="home" />);
-    await act(async () => {});
+    await act(settle);
     expect(loadGlobeMock).toHaveBeenCalledTimes(1);
     expect(ctor).toHaveBeenCalledTimes(1);
     expect(layers()).toHaveLength(1);
@@ -307,11 +315,11 @@ describe('CabinetGlobe', () => {
     const { rerender, CabinetGlobe } = await mount((G) => <G key="a" />);
     act(() => instances[0].options.onReady());
     rerender(<div key="loader" />);
-    await act(async () => {});
+    await act(settle);
     expect(layers()[0].classList.contains('bb-globe-layer--parked')).toBe(true);
     vi.advanceTimersByTime(200);
     rerender(<CabinetGlobe key="b" keepOnly />);
-    await act(async () => {});
+    await act(settle);
     vi.advanceTimersByTime(1000);
     expect(layers()).toHaveLength(1);
     expect(layers()[0].classList.contains('bb-globe-layer--parked')).toBe(false);
@@ -526,9 +534,7 @@ describe('ранний глобус: index.html строит слой до React
     new Function('__import', src)(importMock);
   }
 
-  const flush = async () => {
-    for (let i = 0; i < 20; i++) await Promise.resolve();
-  };
+  const flush = settle;
 
   /** Через сколько после первой отрисовки приложения ранний глобус строится сам (index.html). */
   const DRAW_DELAY = 250;
@@ -831,7 +837,7 @@ describe('ранний глобус: index.html строит слой до React
     document.body.style.backgroundColor = 'rgb(229, 231, 235)';
     document.body.style.color = 'rgb(17, 24, 39)';
     document.documentElement.className = 'light';
-    await act(async () => {});
+    await act(settle);
     expect(instances[0].setColors).toHaveBeenCalledWith({
       dot: 'rgb(17, 24, 39)',
       ring: 'rgba(17, 24, 39, 0.85)',
@@ -848,7 +854,7 @@ describe('ранний глобус: index.html строит слой до React
     await capture();
     const { unmount } = await mount();
     unmount();
-    await act(async () => {});
+    await act(settle);
     expect(layers()[0].classList.contains('bb-globe-layer--parked')).toBe(true);
     expect(instances[0].destroy).not.toHaveBeenCalled();
     vi.advanceTimersByTime(300);

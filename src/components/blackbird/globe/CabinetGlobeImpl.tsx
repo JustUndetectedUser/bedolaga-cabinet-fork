@@ -203,8 +203,12 @@ function destroyLayer(layer: Layer) {
   if (layer.dead) return;
   layer.dead = true;
   clearTimeout(layer.timer);
+  // Класс на body — у слоя, который сейчас в документе: слой, уже вынутый из
+  // него (страница пересобрана, тесты с новым экземпляром модуля), чужой класс
+  // не трогает.
+  const owned = shared === layer && layer.el.isConnected;
   if (shared === layer) shared = null;
-  document.body.classList.remove('bb-globe-on');
+  if (owned) document.body.classList.remove('bb-globe-on');
   layer.stop();
   try {
     layer.globe.destroy();
@@ -251,7 +255,7 @@ function take(layer: Layer, onReady: () => void): () => void {
     // и не взял (на других страницах глобуса нет). Убрать — чуть позже: страница
     // с глобусом после короткой паузы (загрузчик) заберёт его раньше.
     queueMicrotask(() => {
-      if (layer.users > 0 || layer.dead) return;
+      if (layer.users > 0 || layer.dead || !layer.el.isConnected) return;
       layer.el.classList.add('bb-globe-layer--parked');
       document.body.classList.remove('bb-globe-on');
     });
