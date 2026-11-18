@@ -147,3 +147,73 @@ describe('loadGlobe', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('loadGlobe: ранний глобус (index.html, вход с лендинга)', () => {
+  const early = (load: Promise<unknown>, base = '/bb-globe/') => {
+    (globalThis as Record<string, unknown>).__bbGlobeEarly = {
+      base,
+      load,
+      layer: null,
+      dropped: false,
+      adopted: false,
+    };
+  };
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).__bbGlobeEarly;
+  });
+
+  it('та же база: config и модуль из раннего, своих запросов нет', async () => {
+    early(
+      Promise.resolve({
+        config: { v: 'abc', servers: SERVERS },
+        mod: { BBGlobe: FakeGlobe, cabinetView },
+      }),
+    );
+    const loadGlobe = await load();
+    const importer = vi.fn();
+    expect(await loadGlobe('/bb-globe/', importer)).toEqual({
+      BBGlobe: FakeGlobe,
+      cabinetView,
+      servers: SERVERS,
+      dataUrl: '/bb-globe/globe-data.json?v=abc',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(importer).not.toHaveBeenCalled();
+  });
+
+  it('ранний с неверным config или модулем — null, без повторных запросов', async () => {
+    early(
+      Promise.resolve({
+        config: { v: 'abc', servers: [] },
+        mod: { BBGlobe: FakeGlobe, cabinetView },
+      }),
+    );
+    const loadGlobe = await load();
+    const importer = vi.fn();
+    expect(await loadGlobe('/bb-globe/', importer)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(importer).not.toHaveBeenCalled();
+  });
+
+  it('ранний не загрузился (null) — загрузка как без него', async () => {
+    early(Promise.resolve(null));
+    fetchMock.mockResolvedValue(json({ v: 'abc', servers: SERVERS }));
+    const loadGlobe = await load();
+    const importer = vi.fn().mockResolvedValue({ BBGlobe: FakeGlobe, cabinetView });
+    expect(await loadGlobe('/bb-globe/', importer)).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(importer).toHaveBeenCalledTimes(1);
+  });
+
+  it('другая база — ранний не используется', async () => {
+    early(Promise.resolve({ config: { v: 'x', servers: SERVERS }, mod: {} }), '/other/');
+    fetchMock.mockResolvedValue(json({ v: 'abc', servers: SERVERS }));
+    const loadGlobe = await load();
+    const importer = vi.fn().mockResolvedValue({ BBGlobe: FakeGlobe, cabinetView });
+    expect((await loadGlobe('/bb-globe/', importer))?.dataUrl).toBe(
+      '/bb-globe/globe-data.json?v=abc',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

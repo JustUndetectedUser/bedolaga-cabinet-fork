@@ -1,4 +1,5 @@
 import type { BBGlobeConstructor, BBGlobeModule, GlobeView } from './bbGlobe';
+import { earlyGlobe } from './earlyGlobe';
 
 /** Всё, что нужно слою глобуса: класс модуля, место глобуса, страны и адрес данных. */
 export interface LoadedGlobe {
@@ -38,6 +39,11 @@ export async function loadGlobe(
 
 async function fetchGlobe(base: string, importer: ImportModule): Promise<LoadedGlobe | null> {
   try {
+    // Вход с лендинга: config.json и модуль уже грузит инлайн-скрипт index.html
+    // (earlyGlobe.ts) — берём их, второго запроса нет. Не загрузились — как без него.
+    const early = earlyGlobe();
+    const got = early?.base === base ? await early.load : null;
+    if (got) return loaded(base, got.config, got.mod);
     // Без второго аргумента: режим cors и credentials same-origin — те же, что у
     // <link rel="preload" as="fetch" crossorigin> из index.html, поэтому браузер
     // отдаёт предзагруженный ответ, а не запрашивает config.json второй раз.
@@ -45,20 +51,27 @@ async function fetchGlobe(base: string, importer: ImportModule): Promise<LoadedG
     if (!res.ok) return null;
     const config: unknown = await res.json();
     if (!isConfig(config)) return null;
-    const v = encodeURIComponent(String(config.v));
-    const mod = (await importer(`${base}bb-globe.js?v=${v}`)) as Partial<BBGlobeModule> | null;
-    if (!mod || typeof mod.BBGlobe !== 'function' || typeof mod.cabinetView !== 'function') {
-      return null;
-    }
-    return {
-      BBGlobe: mod.BBGlobe,
-      cabinetView: mod.cabinetView,
-      servers: config.servers,
-      dataUrl: `${base}globe-data.json?v=${v}`,
-    };
+    return loaded(base, config, await importer(`${base}bb-globe.js?v=${version(config)}`));
   } catch {
     return null;
   }
+}
+
+const version = (config: { v: string | number }) => encodeURIComponent(String(config.v));
+
+/** Проверить config.json и модуль; null — не тот формат или нет нужных экспортов. */
+function loaded(base: string, config: unknown, module: unknown): LoadedGlobe | null {
+  if (!isConfig(config)) return null;
+  const mod = module as Partial<BBGlobeModule> | null;
+  if (!mod || typeof mod.BBGlobe !== 'function' || typeof mod.cabinetView !== 'function') {
+    return null;
+  }
+  return {
+    BBGlobe: mod.BBGlobe,
+    cabinetView: mod.cabinetView,
+    servers: config.servers,
+    dataUrl: `${base}globe-data.json?v=${version(config)}`,
+  };
 }
 
 /** config.json роли front: { v: версия файлов, servers: { КОД: { name, region } } }. */

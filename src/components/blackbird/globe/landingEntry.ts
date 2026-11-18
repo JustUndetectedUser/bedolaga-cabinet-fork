@@ -1,4 +1,4 @@
-import { loadGlobe } from './loadGlobe';
+import { dropEarlyLayer } from './earlyGlobe';
 
 /**
  * BlackBird: вход в кабинет с лендинга. По нажатию «В личный кабинет» лендинг
@@ -19,7 +19,10 @@ import { loadGlobe } from './loadGlobe';
  *
  * Первую отрисовку (до бандла) красит в чёрный инлайн-скрипт index.html
  * (data-hint="landing-entry", класс bb-entry-black): тёмная тема держит его,
- * пока #root скрыт, светлая снимает, как только накладка на месте.
+ * пока #root скрыт, светлая снимает, как только накладка на месте. В тёмной
+ * теме тот же скрипт сразу грузит глобус и строит его слой (earlyGlobe.ts):
+ * CabinetGlobe его забирает, и первый кадр, когда страница с глобусом уже на
+ * месте, снимает ожидание — до этого #root пуст или показывает загрузчик.
  *
  * Метку (from, lon, t) убираем из адреса всегда: она одноразовая, а адрес
  * могут сохранить или переслать. Остальные параметры и hash не трогаем.
@@ -43,13 +46,21 @@ export const ENTRY_FADE_MS = 400;
 /** t из метки дальше от наших часов — ссылку открыли не сразу (или часы врут): вращение от своих часов. */
 const SPIN_FROM_MAX_SKEW_MS = 10 * 60 * 1000;
 /**
+ * Ранний слой (earlyGlobe.ts), который так и не забрала страница с глобусом
+ * (вход привёл на экран без глобуса: сбой бэкенда, блокировка), убирается.
+ * С запасом на первую отрисовку React (словари — до 5 с): на обычном входе его
+ * забирают «Вход» или «Главная» намного раньше.
+ */
+export const EARLY_HOLD_MS = 5000;
+/**
  * Светлая тема: приложение так и не отрисовалось — накладка всё равно гаснет.
  * Больше, чем main.tsx ждёт перед первой отрисовкой (словари — до 5 с,
  * палитра — до 1,5 с), чтобы срабатывать только при поломке.
  */
 const VEIL_MAX_MS = 6000;
 
-const MARK_PARAMS = ['from', 'lon', 't'];
+/** Части query с меткой (from, lon, t); лендинг имён не кодирует. */
+const MARK_PART = /^(from|lon|t)(=|$)/;
 /** Класс инлайн-скрипта index.html: фон страницы чёрный, пока не начался вход. */
 const BLACK = 'bb-entry-black';
 
@@ -63,21 +74,13 @@ function finite(value: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function decode(s: string): string {
-  try {
-    return decodeURIComponent(s.replace(/\+/g, ' '));
-  } catch {
-    return s;
-  }
-}
-
 /** Убрать метку из адреса: остальные части query остаются как были, байт в байт; hash и state тоже. */
 function stripMark(win: Window): void {
   const { pathname, search, hash } = win.location;
   const kept = search
     .slice(1)
     .split('&')
-    .filter((part) => part !== '' && !MARK_PARAMS.includes(decode(part.split('=')[0])));
+    .filter((part) => part !== '' && !MARK_PART.test(part));
   const query = kept.length ? `?${kept.join('&')}` : '';
   win.history.replaceState(win.history.state, '', `${pathname}${query}${hash}`);
 }
@@ -87,7 +90,8 @@ function showVeil(doc: Document): void {
   const veil = doc.createElement('div');
   veil.className = 'bb-entry-veil';
   veil.setAttribute('aria-hidden', 'true');
-  (doc.body ?? doc.documentElement).appendChild(veil);
+  // main.tsx — модуль в конце body: body уже есть
+  doc.body.appendChild(veil);
   const root = doc.getElementById('root');
   let observer: MutationObserver | null = null;
   let cap: ReturnType<typeof setTimeout> | undefined;
@@ -102,13 +106,10 @@ function showVeil(doc: Document): void {
     veil.classList.add('is-out');
     setTimeout(() => veil.remove(), ENTRY_FADE_MS + 100);
   };
-  if (root?.firstChild) {
-    out();
-    return;
-  }
   if (root) {
-    // Первый узел в #root — первая отрисовка React: класс встаёт до кадра, в
-    // котором она появится на экране, и накладка гаснет начиная с этого кадра.
+    // Первый узел в #root — первая отрисовка React (до неё #root пуст: вызов —
+    // до createRoot): класс встаёт до кадра, в котором она появится на экране,
+    // и накладка гаснет начиная с этого кадра.
     observer = new MutationObserver(out);
     observer.observe(root, { childList: true });
   }
@@ -156,11 +157,18 @@ function capture(win: Window, now: number): LandingEntry | null {
     html.classList.add('bb-entry');
     const left = Math.max(0, ENTRY_WAIT_MS - (performance.now() - now));
     wait = { html, timer: setTimeout(releaseLandingEntry, left) };
-    // Как можно раньше: config.json уже в предзагрузке index.html, модуль глобуса
-    // грузится, пока React готовит первую отрисовку. Глобуса не будет — не ждём.
-    void loadGlobe().then((g) => {
-      if (!g) releaseLandingEntry();
-    });
+    setTimeout(dropEarlyLayer, EARLY_HOLD_MS);
+    // Как можно раньше, пока React готовит первую отрисовку (обычно глобус уже
+    // грузит инлайн-скрипт index.html — тогда без второго запроса). Глобуса не
+    // будет — не ждём.
+    import('./loadGlobe')
+      .then((m) => m.loadGlobe())
+      .then(
+        (g) => {
+          if (!g) releaseLandingEntry();
+        },
+        () => releaseLandingEntry(),
+      );
     return 'dark';
   } catch {
     return null;

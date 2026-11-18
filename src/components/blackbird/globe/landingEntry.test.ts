@@ -102,6 +102,7 @@ describe('captureLandingEntry: тёмная тема', () => {
     go('/?from=landing');
     const { captureLandingEntry } = await entry();
     captureLandingEntry(window);
+    await vi.advanceTimersByTimeAsync(0);
     expect(loadGlobeMock).toHaveBeenCalledTimes(1);
   });
 
@@ -347,6 +348,53 @@ describe('первая отрисовка чёрная (index.html, bb-entry-bla
   });
 });
 
+describe('ранний слой index.html, который никто не взял', () => {
+  const setEarly = () => {
+    const el = document.createElement('div');
+    el.className = 'bb-globe-layer';
+    document.body.appendChild(el);
+    const destroy = vi.fn();
+    const early = {
+      base: '/bb-globe/',
+      load: Promise.resolve(null),
+      layer: { el, globe: { destroy }, ready: true, onReady: null, colors: {} },
+      dropped: false,
+      adopted: false,
+    };
+    (window as unknown as { __bbGlobeEarly?: unknown }).__bbGlobeEarly = early;
+    return { el, destroy, early };
+  };
+
+  afterEach(() => {
+    delete (window as unknown as { __bbGlobeEarly?: unknown }).__bbGlobeEarly;
+  });
+
+  it('убирается через EARLY_HOLD_MS после входа (страница без глобуса)', async () => {
+    const { el, destroy, early } = setEarly();
+    go('/?from=landing');
+    const { captureLandingEntry, EARLY_HOLD_MS } = await entry();
+    captureLandingEntry(window);
+    vi.advanceTimersByTime(EARLY_HOLD_MS - 1);
+    expect(el.isConnected).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(el.isConnected).toBe(false);
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(early.dropped).toBe(true);
+    expect(early.layer).toBeNull();
+  });
+
+  it('взятый React не трогается', async () => {
+    const { el, destroy, early } = setEarly();
+    go('/?from=landing');
+    const { captureLandingEntry, EARLY_HOLD_MS } = await entry();
+    captureLandingEntry(window);
+    early.adopted = true;
+    vi.advanceTimersByTime(EARLY_HOLD_MS);
+    expect(el.isConnected).toBe(true);
+    expect(destroy).not.toHaveBeenCalled();
+  });
+});
+
 describe('blackbird.css: числа входа', () => {
   const rule = (selector: string) => {
     // последнее правило с этим селектором (первое может быть общим с другим)
@@ -363,7 +411,7 @@ describe('blackbird.css: числа входа', () => {
   it('полоса шапки лендинга (0..72 px) закрыта и проявляется вместе с содержимым', () => {
     const band = rule('html.bb-entry-in .bb-globe-layer::after');
     expect(cssSource).toMatch(
-      /html\.bb-entry \.bb-globe-layer::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{[^}]*height: 72px;/,
+      /html\.bb-entry-black \.bb-globe-layer::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{[^}]*height: 72px;/,
     );
     expect(band).toMatch(/opacity: 0;/);
     expect(band).toMatch(/transition: opacity 0\.4s/);
