@@ -214,10 +214,12 @@
               if (!config) return null;
               const v = encodeURIComponent(String(config.v));
               // данные — параллельно с модулем: fetch() модуля возьмёт этот ответ
-              // (as=fetch + crossorigin — тот же режим), второго запроса нет
+              // (as=fetch + crossorigin — тот же режим), второго запроса нет.
+              // Низкий приоритет: ~78 КБ на узком канале не отнимают полосу у бандла.
               const data = document.createElement('link');
               data.rel = 'preload';
               data.setAttribute('as', 'fetch');
+              data.setAttribute('fetchpriority', 'low');
               data.crossOrigin = 'anonymous';
               data.href = `${base}globe-data.json?v=${v}`;
               document.head.appendChild(data);

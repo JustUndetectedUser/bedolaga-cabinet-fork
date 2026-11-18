@@ -13,8 +13,8 @@ import htmlSource from '../../../../index.html?raw';
  * setColors без второго глобуса; уход со страницы — destroy (после короткой
  * паузы: вход → «Главная» передаёт тот же глобус без рывка, и скелетон
  * «Главной» держит его, пока грузятся данные, сам глобус не создавая);
- * StrictMode — один слой; Telegram «deactivated» — глобус уезжает за экран
- * (модуль не рисует вне экрана).
+ * StrictMode — один слой; Telegram «deactivated» и экран блокировки — глобус
+ * уезжает за экран (модуль не рисует вне экрана).
  */
 
 const { loadGlobeMock } = vi.hoisted(() => ({ loadGlobeMock: vi.fn() }));
@@ -338,6 +338,61 @@ describe('CabinetGlobe', () => {
     expect(offEvent).toHaveBeenCalledWith('deactivated', handlers.deactivated);
     expect(offEvent).toHaveBeenCalledWith('activated', handlers.activated);
   });
+
+  // BlockingOverlay (App.tsx) — непрозрачный экран поверх страницы, а вход или
+  // «Главная» под ним держат глобус: IntersectionObserver перекрытия не видит.
+  // Слой уезжает за экран (модуль не рисует), снят — возвращается (вращение
+  // дальше с того места, где стояло, — это модуль).
+  it('экран блокировки: слой уезжает за экран, пока он есть; снят — возвращается', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { unmount } = await mount();
+    const { useBlockingStore } = await import('../../../store/blocking');
+    const layer = layers()[0];
+    const paused = () => layer.classList.contains('bb-globe-layer--paused');
+    expect(paused()).toBe(false);
+    act(() => useBlockingStore.getState().setMaintenance({ message: 'Технические работы' }));
+    expect(paused()).toBe(true);
+    act(() => useBlockingStore.getState().setBackendUnavailable());
+    expect(paused()).toBe(true);
+    act(() => useBlockingStore.getState().clearBlocking());
+    expect(paused()).toBe(false);
+    unmount();
+    vi.advanceTimersByTime(300);
+    expect(layers()).toHaveLength(0);
+    // после destroy подписки нет: смена экрана блокировки слою ничего не делает
+    act(() => useBlockingStore.getState().setBlacklisted({ message: 'x' }));
+    expect(paused()).toBe(false);
+    act(() => useBlockingStore.getState().clearBlocking());
+  });
+
+  it('экран блокировки уже есть, когда слой создаётся: сразу за экраном', async () => {
+    const { useBlockingStore } = await import('../../../store/blocking');
+    useBlockingStore.getState().setChannelSubscription({ message: 'Подпишитесь' });
+    await mount();
+    expect(layers()[0].classList.contains('bb-globe-layer--paused')).toBe(true);
+    act(() => useBlockingStore.getState().clearBlocking());
+    expect(layers()[0].classList.contains('bb-globe-layer--paused')).toBe(false);
+  });
+
+  it('Telegram deactivated и экран блокировки вместе: слой на месте, только когда сняты оба', async () => {
+    const handlers: Record<string, () => void> = {};
+    vi.stubGlobal('Telegram', {
+      WebApp: { onEvent: (e: string, cb: () => void) => (handlers[e] = cb), offEvent: vi.fn() },
+    });
+    await mount();
+    const { useBlockingStore } = await import('../../../store/blocking');
+    const layer = layers()[0];
+    const paused = () => layer.classList.contains('bb-globe-layer--paused');
+    act(() => handlers.deactivated());
+    act(() => useBlockingStore.getState().setMaintenance({ message: 'x' }));
+    act(() => handlers.activated());
+    expect(paused()).toBe(true);
+    act(() => handlers.deactivated());
+    act(() => useBlockingStore.getState().clearBlocking());
+    expect(paused()).toBe(true);
+    act(() => handlers.activated());
+    expect(paused()).toBe(false);
+  });
 });
 
 describe('CabinetGlobe: вход с лендинга (landingEntry)', () => {
@@ -595,6 +650,8 @@ describe('ранний глобус: index.html строит слой до React
     expect(data?.getAttribute('href')).toBe('/bb-globe/globe-data.json?v=abc');
     expect(data?.getAttribute('as')).toBe('fetch');
     expect(data?.getAttribute('crossorigin')).toBe('anonymous');
+    // ~78 КБ: на узком канале не отнимают полосу у бандла (тот — с высоким приоритетом)
+    expect(data?.getAttribute('fetchpriority')).toBe('low');
     expect(ctor).toHaveBeenCalledTimes(1);
     expect(layers()).toHaveLength(1);
     const layer = layers()[0] as HTMLElement;

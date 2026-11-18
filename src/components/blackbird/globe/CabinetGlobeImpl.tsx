@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useBlockingStore } from '../../../store/blocking';
 import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
 import { claimEarlyLayer } from './earlyGlobe';
 import { globeColors } from './globeColors';
@@ -122,7 +123,7 @@ function markReady(layer: Layer) {
   for (const cb of layer.readyCbs) cb();
 }
 
-/** Обвязка слоя: сбой данных, смена темы, свёрнутый Mini App. */
+/** Обвязка слоя: сбой данных, смена темы, свёрнутый Mini App, экран блокировки. */
 function wrapLayer(el: HTMLDivElement, globe: BBGlobeInstance, built: GlobeColors): Layer {
   let colors = built;
   const layer: Layer = {
@@ -163,18 +164,37 @@ function wrapLayer(el: HTMLDivElement, globe: BBGlobeInstance, built: GlobeColor
 
   // Свёрнутый Mini App: вкладка может остаться «видимой», а кадры идти. Модуль
   // не рисует вне экрана (IntersectionObserver), поэтому слой уезжает за экран;
-  // размер не меняется — без перерасчёта, по возвращении вращение догоняет.
+  // размер не меняется — без перерасчёта, по возвращении вращение идёт дальше
+  // с того места, где стояло. Так же — пока есть экран блокировки (обслуживание,
+  // бэкенд недоступен, подписка на канал, бан, удалённый аккаунт): BlockingOverlay
+  // (App.tsx) закрывает всё непрозрачным слоем, а вход или «Главная» под ним
+  // держат глобус, и перекрытия IntersectionObserver не видит.
   const tg = window.Telegram?.WebApp;
-  const pause = () => el.classList.add('bb-globe-layer--paused');
-  const resume = () => el.classList.remove('bb-globe-layer--paused');
+  let inactive = false;
+  let blocked = useBlockingStore.getState().blockingType !== null;
+  const sync = () => el.classList.toggle('bb-globe-layer--paused', inactive || blocked);
+  const pause = () => {
+    inactive = true;
+    sync();
+  };
+  const resume = () => {
+    inactive = false;
+    sync();
+  };
   tg?.onEvent?.('deactivated', pause);
   tg?.onEvent?.('activated', resume);
+  const unblock = useBlockingStore.subscribe((state) => {
+    blocked = state.blockingType !== null;
+    sync();
+  });
+  sync();
 
   layer.stop = () => {
     failObserver.disconnect();
     themeObserver.disconnect();
     tg?.offEvent?.('deactivated', pause);
     tg?.offEvent?.('activated', resume);
+    unblock();
   };
   return layer;
 }
