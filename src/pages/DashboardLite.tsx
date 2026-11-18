@@ -233,7 +233,9 @@ export default function DashboardLite() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-lg">
+      <div className="bb-globe-shade mx-auto w-full max-w-lg">
+        {/* BlackBird: скелетон держит глобус, если он уже стоит (пришли со входа), но не создаёт его */}
+        <CabinetGlobe keepOnly />
         <SkeletonGroup className="pb-7 pt-8">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="mt-3 h-8 w-40" />

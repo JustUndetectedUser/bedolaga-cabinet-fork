@@ -141,8 +141,15 @@ function destroyLayer(layer: Layer) {
 function acquire(g: LoadedGlobe, onReady: () => void): (() => void) | null {
   if (broken) return null;
   shared ??= createLayer(g);
-  const layer = shared;
-  if (!layer) return null;
+  return shared ? take(shared, onReady) : null;
+}
+
+/** Удержать слой, если он уже есть (скелетон «Главной»): новый не создаётся. */
+function keep(onReady: () => void): (() => void) | null {
+  return shared && !shared.dead ? take(shared, onReady) : null;
+}
+
+function take(layer: Layer, onReady: () => void): () => void {
   clearTimeout(layer.timer);
   layer.timer = undefined;
   layer.users += 1;
@@ -156,10 +163,16 @@ function acquire(g: LoadedGlobe, onReady: () => void): (() => void) | null {
     layer.readyCbs.delete(onReady);
     layer.users -= 1;
     if (layer.users > 0 || layer.dead) return;
-    // Страница ушла: спрятать сразу (на других страницах глобуса нет), убрать
-    // чуть позже — если это был вход, «Главная» заберёт слой раньше.
-    layer.el.classList.add('bb-globe-layer--parked');
-    document.body.classList.remove('bb-globe-on');
+    // Страница ушла. Следующая страница того же перехода берёт слой в тех же
+    // эффектах React (вход → скелетон «Главной» → её содержимое): поэтому
+    // спрятать — микрозадачей, ещё до отрисовки, и только если слой так никто
+    // и не взял (на других страницах глобуса нет). Убрать — чуть позже: страница
+    // с глобусом после короткой паузы (загрузчик) заберёт его раньше.
+    queueMicrotask(() => {
+      if (layer.users > 0 || layer.dead) return;
+      layer.el.classList.add('bb-globe-layer--parked');
+      document.body.classList.remove('bb-globe-on');
+    });
     layer.timer = setTimeout(() => destroyLayer(layer), HANDOVER_MS);
   };
 }
@@ -170,8 +183,19 @@ function acquire(g: LoadedGlobe, onReady: () => void): (() => void) | null {
  * VITE_GLOBE_BASE и при любом сбое (config.json, модуль, данные, конструктор)
  * глобуса нет — страница как без него. onReady — после первого кадра глобуса
  * (сразу, если он уже нарисован).
+ *
+ * keepOnly — для скелетона «Главной»: только удерживает слой, который уже
+ * есть (пришли со входа — глобус стоит, пока грузятся данные), и ничего не
+ * грузит и не создаёт (холодная загрузка — глобус после содержимого, как без
+ * keepOnly на самом содержимом).
  */
-export function CabinetGlobe({ onReady }: { onReady?: () => void }): null {
+export function CabinetGlobe({
+  onReady,
+  keepOnly = false,
+}: {
+  onReady?: () => void;
+  keepOnly?: boolean;
+}): null {
   const [globe, setGlobe] = useState<LoadedGlobe | null>(() => known);
   const onReadyRef = useRef(onReady);
   useEffect(() => {
@@ -179,7 +203,7 @@ export function CabinetGlobe({ onReady }: { onReady?: () => void }): null {
   });
 
   useEffect(() => {
-    if (globe) return;
+    if (globe || keepOnly) return;
     let alive = true;
     loadGlobe().then((g) => {
       if (!g) return;
@@ -189,13 +213,13 @@ export function CabinetGlobe({ onReady }: { onReady?: () => void }): null {
     return () => {
       alive = false;
     };
-  }, [globe]);
+  }, [globe, keepOnly]);
 
   useEffect(() => {
-    if (!globe) return;
-    const release = acquire(globe, () => onReadyRef.current?.());
+    const ready = () => onReadyRef.current?.();
+    const release = keepOnly ? keep(ready) : globe ? acquire(globe, ready) : null;
     return release ?? undefined;
-  }, [globe]);
+  }, [globe, keepOnly]);
 
   return null;
 }

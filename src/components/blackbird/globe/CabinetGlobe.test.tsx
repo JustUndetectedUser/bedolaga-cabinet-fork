@@ -9,9 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * body (декоративный, aria-hidden) и BBGlobe с опциями кабинета; телефон —
  * 30 кадров/с и порог проверки 28, ПК — без предела и 55; смена темы —
  * setColors без второго глобуса; уход со страницы — destroy (после короткой
- * паузы: вход → «Главная» передаёт тот же глобус без рывка); StrictMode —
- * один слой; Telegram «deactivated» — глобус уезжает за экран (модуль не
- * рисует вне экрана).
+ * паузы: вход → «Главная» передаёт тот же глобус без рывка, и скелетон
+ * «Главной» держит его, пока грузятся данные, сам глобус не создавая);
+ * StrictMode — один слой; Telegram «deactivated» — глобус уезжает за экран
+ * (модуль не рисует вне экрана).
  */
 
 const { loadGlobeMock } = vi.hoisted(() => ({ loadGlobeMock: vi.fn() }));
@@ -85,9 +86,9 @@ afterEach(() => {
   document.documentElement.className = '';
 });
 
-async function mount(
-  ui?: (G: React.ComponentType<{ onReady?: () => void }>) => React.ReactElement,
-) {
+type Globe = React.ComponentType<{ onReady?: () => void; keepOnly?: boolean }>;
+
+async function mount(ui?: (G: Globe) => React.ReactElement) {
   const { CabinetGlobe } = await import('./CabinetGlobe');
   const view = render(ui ? ui(CabinetGlobe) : <CabinetGlobe />);
   // loadGlobe — промис: даём ему разрешиться и React — отрисовать
@@ -176,11 +177,13 @@ describe('CabinetGlobe', () => {
     expect(instances[0].setColors).toHaveBeenCalledTimes(1);
   });
 
-  it('размонтирование: слой прячется сразу, destroy и удаление после паузы', async () => {
+  it('размонтирование: слой прячется до следующего кадра, destroy и удаление после паузы', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { unmount } = await mount();
     act(() => instances[0].options.onReady());
     unmount();
+    // микрозадача: раньше отрисовки, но после эффектов страницы, которая может забрать слой
+    await act(async () => {});
     const layer = layers()[0];
     expect(layer.classList.contains('bb-globe-layer--parked')).toBe(true);
     expect(document.body.classList.contains('bb-globe-on')).toBe(false);
@@ -240,6 +243,67 @@ describe('CabinetGlobe', () => {
     await act(async () => {});
     expect(layers()).toHaveLength(0);
     expect(ctor).toHaveBeenCalledTimes(1);
+  });
+
+  it('вход → скелетон «Главной» → её содержимое: тот же слой, ни разу не спрятан', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { rerender, CabinetGlobe } = await mount((G) => <G key="login" />);
+    act(() => instances[0].options.onReady());
+    const layer = layers()[0];
+    // каждая смена класса со старым значением: спрятать и показать в одном проходе тоже видно
+    const classes: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const r of records) classes.push(r.oldValue ?? '');
+      classes.push(layer.className);
+    });
+    watch.observe(layer, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    // «Главная» в DashboardLite: скелетон и содержимое — один и тот же CabinetGlobe, keepOnly снимается
+    rerender(<CabinetGlobe key="home" keepOnly />);
+    await act(async () => {});
+    vi.advanceTimersByTime(250);
+    rerender(<CabinetGlobe key="home" />);
+    await act(async () => {});
+    vi.advanceTimersByTime(1000);
+    await act(async () => {});
+    watch.disconnect();
+    expect(classes.filter((c) => c.includes('bb-globe-layer--parked'))).toEqual([]);
+    expect(layers()).toHaveLength(1);
+    expect(layers()[0]).toBe(layer);
+    expect(document.body.classList.contains('bb-globe-on')).toBe(true);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(instances[0].destroy).not.toHaveBeenCalled();
+    expect(loadGlobeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('скелетон без готового глобуса: слой не создаёт и ничего не грузит; содержимое — как обычно', async () => {
+    const { rerender, CabinetGlobe } = await mount((G) => <G key="home" keepOnly />);
+    expect(layers()).toHaveLength(0);
+    expect(loadGlobeMock).not.toHaveBeenCalled();
+    expect(ctor).not.toHaveBeenCalled();
+    // данные пришли: тот же компонент без keepOnly грузит и строит глобус
+    rerender(<CabinetGlobe key="home" />);
+    await act(async () => {});
+    expect(loadGlobeMock).toHaveBeenCalledTimes(1);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(layers()).toHaveLength(1);
+  });
+
+  it('скелетон держит уже спрятанный слой (страница без глобуса между ними, меньше 300 мс)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { rerender, CabinetGlobe } = await mount((G) => <G key="a" />);
+    act(() => instances[0].options.onReady());
+    rerender(<div key="loader" />);
+    await act(async () => {});
+    expect(layers()[0].classList.contains('bb-globe-layer--parked')).toBe(true);
+    vi.advanceTimersByTime(200);
+    rerender(<CabinetGlobe key="b" keepOnly />);
+    await act(async () => {});
+    vi.advanceTimersByTime(1000);
+    expect(layers()).toHaveLength(1);
+    expect(layers()[0].classList.contains('bb-globe-layer--parked')).toBe(false);
+    expect(document.body.classList.contains('bb-globe-on')).toBe(true);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(instances[0].destroy).not.toHaveBeenCalled();
   });
 
   it('Telegram deactivated/activated: слой уезжает за экран и возвращается', async () => {
