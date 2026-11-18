@@ -353,16 +353,25 @@ describe('ранний слой index.html, который никто не вз�
     const el = document.createElement('div');
     el.className = 'bb-globe-layer';
     document.body.appendChild(el);
+    el.classList.add('is-ready', 'bb-globe-layer--instant');
     const destroy = vi.fn();
+    const resume = vi.fn();
     const early = {
       base: '/bb-globe/',
       load: Promise.resolve(null),
-      layer: { el, globe: { destroy }, ready: true, onReady: null, colors: {} },
+      layer: {
+        el,
+        globe: { destroy, resume },
+        ready: true,
+        onReady: null,
+        colors: {},
+        faded: false,
+      },
       dropped: false,
       adopted: false,
     };
     (window as unknown as { __bbGlobeEarly?: unknown }).__bbGlobeEarly = early;
-    return { el, destroy, early };
+    return { el, destroy, resume, early };
   };
 
   afterEach(() => {
@@ -381,6 +390,31 @@ describe('ранний слой index.html, который никто не вз�
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(early.dropped).toBe(true);
     expect(early.layer).toBeNull();
+  });
+
+  it('конец ожидания, не взят: гаснет (без скачка), не вращается, но остаётся до EARLY_HOLD_MS', async () => {
+    const { el, destroy, resume, early } = setEarly();
+    go('/?from=landing');
+    const { captureLandingEntry } = await entry();
+    captureLandingEntry(window);
+    vi.advanceTimersByTime(600);
+    expect(el.classList.contains('is-ready')).toBe(false);
+    expect(el.classList.contains('bb-globe-layer--instant')).toBe(false);
+    expect(early.layer?.faded).toBe(true);
+    expect(resume).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+    expect(el.isConnected).toBe(true);
+  });
+
+  it('конец ожидания, взят: вращается дальше, виден', async () => {
+    const { el, resume, early } = setEarly();
+    go('/?from=landing');
+    const { captureLandingEntry, releaseLandingEntry } = await entry();
+    captureLandingEntry(window);
+    early.adopted = true;
+    releaseLandingEntry();
+    expect(resume).toHaveBeenCalled();
+    expect(el.classList.contains('is-ready')).toBe(true);
   });
 
   it('взятый React не трогается', async () => {

@@ -193,13 +193,15 @@
           style.textContent = 'html.bb-entry-black body{background-color:#000}';
           document.head.appendChild(style);
           html.classList.add('bb-entry-black');
-          // Тёмная тема: глобус грузится сразу и строит свой слой до бандла —
-          // React, словари и палитра его не задерживают. Слой забирает
-          // CabinetGlobe (earlyGlobe.ts), config и модуль — loadGlobe: один
-          // запрос каждого. Параметры глобуса — как в createLayer
+          // Тёмная тема: глобус грузится сразу (сеть), а свой слой строит, не
+          // дожидаясь страницы, — React, словари и палитра его не задерживают.
+          // Слой забирает CabinetGlobe (earlyGlobe.ts), config и модуль —
+          // loadGlobe: один запрос каждого. Параметры глобуса — как в createLayer
           // (CabinetGlobeImpl.tsx): менять вместе, их равенство проверяет тест.
           const base = '%VITE_GLOBE_BASE%';
           if (!base || base.charAt(0) === '%' || html.classList.contains('light')) return;
+          // глобус — только «Главная» и вход (как предзагрузка config.json выше)
+          if (location.pathname !== '/' && location.pathname !== '/login') return;
           const num = (s) => (s?.trim() ? Number(s) : Number.NaN);
           const lon = num(q.get('lon'));
           const at = num(q.get('t'));
@@ -222,58 +224,90 @@
               return import(`${base}bb-globe.js?v=${v}`).then((mod) => ({ config, mod }));
             })
             .catch(() => null);
-          // <body> появится, как только парсер до него дойдёт (не DOMContentLoaded:
-          // тот ждёт бандл, а глобус как раз не должен его ждать)
-          const body = new Promise((go) => {
-            const wait = () => (document.body ? go() : setTimeout(wait, 5));
+          // Строится — когда приложение отрисовалось (первый узел в #root): до того
+          // главный поток — бандлу и React (кадр холста и его передача на экран без
+          // GPU стоят десятки мс), а сеть уже вся сделана. Не DOMContentLoaded и не
+          // createRoot: #root ищем сами, как только парсер до него дойдёт.
+          const rendered = new Promise((go) => {
+            const wait = () => {
+              const root = document.getElementById('root');
+              if (!root) return setTimeout(wait, 5);
+              if (root.firstChild) return go();
+              new MutationObserver((_, mo) => {
+                mo.disconnect();
+                go();
+              }).observe(root, { childList: true });
+            };
             wait();
           });
-          Promise.all([early.load, body])
-            .then(([got]) => {
-              const c = got?.config;
-              const m = got?.mod;
-              const v = c?.v;
-              if (early.dropped || !((typeof v === 'string' && v) || Number.isFinite(v))) return;
-              if (!c.servers || typeof c.servers !== 'object' || Array.isArray(c.servers)) return;
-              if (typeof m?.BBGlobe !== 'function' || typeof m.cabinetView !== 'function') return;
-              const phone = innerWidth < 1024;
-              const el = document.createElement('div');
-              el.className = 'bb-globe-layer';
-              el.setAttribute('aria-hidden', 'true');
-              document.body.appendChild(el);
-              // фон под слоем — чёрный bb-entry-black, его globeColors и дал бы
-              const colors = { dot: '#ffffff', ring: '#ffffff', rain: '#ffffff', fade: 'rgb(0, 0, 0)' };
-              const layer = { el, colors, ready: false, onReady: null };
-              const view = (k) => (w, h) => m.cabinetView(w, h)[k];
-              try {
-                layer.globe = new m.BBGlobe(el, {
-                  dataUrl: `${base}globe-data.json?v=${encodeURIComponent(String(v))}`,
-                  servers: c.servers,
-                  spin: 5,
-                  spinFrom: ok ? { lon, at } : null,
-                  tilt: 30,
-                  labels: false,
-                  nav: 'none',
-                  maxFps: phone ? 30 : 0,
-                  spinGate: { frames: 30, medianMs: 8, minFps: phone ? 28 : 55, recheckMs: 5000 },
-                  colors,
-                  focusX: view('focusX'),
-                  focusY: view('focusY'),
-                  zoom: view('zoom'),
-                  onReady: () => {
-                    layer.ready = true;
+          // Слой глобуса с параметрами createLayer (CabinetGlobeImpl.tsx). Когда:
+          // страница с глобусом («Вход», «Главная») обычно приходит вскоре после
+          // первой отрисовки — тогда слой строится при ней (claimEarlyLayer зовёт
+          // early.build: всё уже загружено), и его кадр не отнимает главный поток у
+          // её запуска. Не пришла за 250 мс — приложение ждёт сеть, поток свободен:
+          // глобус встаёт на место сам и ждёт её (hold).
+          const build = (c, m) => {
+            const v = c.v;
+            const phone = innerWidth < 1024;
+            const el = document.createElement('div');
+            el.className = 'bb-globe-layer';
+            el.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(el);
+            // фон под слоем — чёрный bb-entry-black, его globeColors и дал бы
+            const colors = { dot: '#ffffff', ring: '#ffffff', rain: '#ffffff', fade: 'rgb(0, 0, 0)' };
+            const layer = { el, colors, ready: false, onReady: null, faded: false };
+            const view = (k) => (w, h) => m.cabinetView(w, h)[k];
+            try {
+              layer.globe = new m.BBGlobe(el, {
+                dataUrl: `${base}globe-data.json?v=${encodeURIComponent(String(v))}`,
+                servers: c.servers,
+                spin: 5,
+                spinFrom: ok ? { lon, at } : null,
+                tilt: 30,
+                labels: false,
+                nav: 'none',
+                // после первого кадра — стоит, пока его не заберёт страница (resume):
+                // вращение не отнимает главный поток у запуска приложения
+                hold: true,
+                maxFps: phone ? 30 : 0,
+                spinGate: { frames: 30, medianMs: 8, minFps: phone ? 28 : 55, recheckMs: 5000 },
+                colors,
+                focusX: view('focusX'),
+                focusY: view('focusY'),
+                zoom: view('zoom'),
+                onReady: () => {
+                  layer.ready = true;
+                  // вход кончился, а страница слой не забрала (settleEarlyLayer) — не показывать
+                  if (!layer.faded) {
                     // ожидание входа ещё идёт — сразу, без проявления
                     if (html.classList.contains('bb-entry-black')) {
                       el.classList.add('bb-globe-layer--instant');
                     }
                     el.classList.add('is-ready');
-                    layer.onReady?.();
-                  },
-                });
-                early.layer = layer;
-              } catch {
-                el.remove();
-              }
+                  }
+                  layer.onReady?.();
+                },
+              });
+              early.layer = layer;
+            } catch {
+              el.remove();
+            }
+          };
+          Promise.all([early.load, rendered])
+            .then(([got]) => {
+              const c = got?.config;
+              const m = got?.mod;
+              const v = c?.v;
+              if (!((typeof v === 'string' && v) || Number.isFinite(v))) return;
+              if (!c.servers || typeof c.servers !== 'object' || Array.isArray(c.servers)) return;
+              if (typeof m?.BBGlobe !== 'function' || typeof m.cabinetView !== 'function') return;
+              early.build = () => {
+                if (!early.layer && !early.dropped && !early.adopted) build(c, m);
+              };
+              // сам — только пока идёт вход: кончился без страницы — экран без глобуса
+              setTimeout(() => {
+                if (html.classList.contains('bb-entry-black')) early.build();
+              }, 250);
             })
             .catch(() => {});
         } catch {

@@ -1,4 +1,4 @@
-import { dropEarlyLayer } from './earlyGlobe';
+import { dropEarlyLayer, settleEarlyLayer } from './earlyGlobe';
 
 /**
  * BlackBird: вход в кабинет с лендинга. По нажатию «В личный кабинет» лендинг
@@ -20,9 +20,10 @@ import { dropEarlyLayer } from './earlyGlobe';
  * Первую отрисовку (до бандла) красит в чёрный инлайн-скрипт index.html
  * (data-hint="landing-entry", класс bb-entry-black): тёмная тема держит его,
  * пока #root скрыт, светлая снимает, как только накладка на месте. В тёмной
- * теме тот же скрипт сразу грузит глобус и строит его слой (earlyGlobe.ts):
- * CabinetGlobe его забирает, и первый кадр, когда страница с глобусом уже на
- * месте, снимает ожидание — до этого #root пуст или показывает загрузчик.
+ * теме тот же скрипт сразу грузит глобус и строит его слой после первой
+ * отрисовки приложения (earlyGlobe.ts): CabinetGlobe его забирает, и первый
+ * кадр, когда страница с глобусом уже на месте, снимает ожидание — до этого
+ * #root пуст или показывает загрузчик.
  *
  * Метку (from, lon, t) убираем из адреса всегда: она одноразовая, а адрес
  * могут сохранить или переслать. Остальные параметры и hash не трогаем.
@@ -186,6 +187,8 @@ export function releaseLandingEntry(): void {
   html.classList.add('bb-entry-in');
   html.classList.remove('bb-entry', BLACK);
   setTimeout(() => html.classList.remove('bb-entry-in'), ENTRY_FADE_MS + 100);
+  // ранний глобус: взят страницей — вращается дальше, не взят — гаснет и ждёт
+  settleEarlyLayer();
 }
 
 /** Идёт ожидание глобуса (тёмная тема, ещё не снято). */

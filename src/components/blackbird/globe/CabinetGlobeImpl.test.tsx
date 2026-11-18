@@ -33,6 +33,7 @@ const instances: {
   options: Options;
   setColors: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
+  resume: ReturnType<typeof vi.fn>;
   /** как модуль, когда globe-data.json не загрузился: failed и пустой корень */
   fail: () => void;
 }[] = [];
@@ -41,6 +42,7 @@ const ctor = vi.fn();
 class FakeGlobe {
   setColors = vi.fn();
   destroy = vi.fn();
+  resume = vi.fn();
   still = false;
   failed = false;
   constructor(root: HTMLElement, options: Options) {
@@ -50,7 +52,14 @@ class FakeGlobe {
       this.failed = true;
       root.replaceChildren();
     };
-    instances.push({ root, options, setColors: this.setColors, destroy: this.destroy, fail });
+    instances.push({
+      root,
+      options,
+      setColors: this.setColors,
+      destroy: this.destroy,
+      resume: this.resume,
+      fail,
+    });
   }
 }
 
@@ -466,10 +475,29 @@ describe('ранний глобус: index.html строит слой до React
     for (let i = 0; i < 20; i++) await Promise.resolve();
   };
 
+  /** Через сколько после первой отрисовки приложения ранний глобус строится сам (index.html). */
+  const DRAW_DELAY = 250;
+
+  /** Инлайн-скрипт на странице, где приложение уже отрисовалось (первый узел в #root), и задержка прошла. */
   async function inlineBuilt(url = `/?from=landing&lon=40.5&t=${NOW - 300}`) {
+    rendered();
     history.replaceState(null, '', url);
     inline();
     await act(flush);
+    act(() => {
+      vi.advanceTimersByTime(DRAW_DELAY);
+    });
+  }
+
+  /** #root с первым узлом приложения. */
+  function rendered() {
+    let root = document.getElementById('root');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'root';
+      document.body.prepend(root);
+    }
+    if (!root.firstChild) root.appendChild(document.createElement('main'));
   }
 
   async function capture() {
@@ -492,6 +520,68 @@ describe('ранний глобус: index.html строит слой до React
     delete (window as unknown as { __bbGlobeEarly?: Early }).__bbGlobeEarly;
     for (const el of document.head.querySelectorAll('style, link')) el.remove();
     history.replaceState(null, '', '/');
+  });
+
+  it('до первой отрисовки приложения — только сеть: config, модуль и данные грузятся, глобус не строится', async () => {
+    const root = document.createElement('div');
+    root.id = 'root';
+    document.body.prepend(root);
+    history.replaceState(null, '', `/?from=landing&lon=40.5&t=${NOW - 300}`);
+    inline();
+    await act(flush);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(importMock).toHaveBeenCalledTimes(1);
+    expect(document.head.querySelector('link[rel="preload"]')).not.toBeNull();
+    expect(ctor).not.toHaveBeenCalled();
+    expect(layers()).toHaveLength(0);
+    // приложение отрисовалось — страницы с глобусом нет DRAW_DELAY: глобус строится сам
+    root.appendChild(document.createElement('main'));
+    await act(flush);
+    vi.advanceTimersByTime(DRAW_DELAY - 1);
+    expect(ctor).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(layers()).toHaveLength(1);
+  });
+
+  it('вход кончился раньше задержки, страницы нет: сам не строится; страница позже — строится при ней', async () => {
+    rendered();
+    history.replaceState(null, '', `/?from=landing&lon=40.5&t=${NOW - 300}`);
+    inline();
+    await act(flush);
+    const { captureLandingEntry, releaseLandingEntry } = await import('./landingEntry');
+    captureLandingEntry(window);
+    releaseLandingEntry();
+    vi.advanceTimersByTime(DRAW_DELAY);
+    expect(ctor).not.toHaveBeenCalled();
+    expect(layers()).toHaveLength(0);
+    await mount();
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(early()?.adopted).toBe(true);
+  });
+
+  it('страница с глобусом пришла раньше: слой строится при ней (всё уже загружено), один', async () => {
+    rendered();
+    history.replaceState(null, '', `/?from=landing&lon=40.5&t=${NOW - 300}`);
+    inline();
+    await act(flush);
+    expect(ctor).not.toHaveBeenCalled();
+    expect(await capture()).toBe('dark');
+    const onReady = vi.fn();
+    await mount((G) => <G onReady={onReady} />);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(layers()).toHaveLength(1);
+    expect(early()?.adopted).toBe(true);
+    expect(early()?.layer?.el).toBe(layers()[0]);
+    // кадр — после страницы: ожидание снимает он
+    expect(html().contains('bb-entry')).toBe(true);
+    act(() => instances[0].options.onReady());
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(html().contains('bb-entry')).toBe(false);
+    // задержка прошла — второго глобуса нет
+    vi.advanceTimersByTime(DRAW_DELAY);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(layers()).toHaveLength(1);
   });
 
   it('метка: config.json, модуль и слой сразу; слой декоративный, в body', async () => {
@@ -527,8 +617,12 @@ describe('ранний глобус: index.html строит слой до React
       const [, b] = ctor.mock.calls[1] as [HTMLElement, Options];
       const plain = (o: Options) =>
         Object.fromEntries(Object.entries(o).filter(([, v]) => typeof v !== 'function'));
-      expect(plain(a)).toEqual(plain(b));
-      expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
+      // ранний ждёт страницу (hold), остальное — то же
+      const { hold, ...rest } = plain(a);
+      expect(hold).toBe(true);
+      expect(b.hold).toBeUndefined();
+      expect(rest).toEqual(plain(b));
+      expect(Object.keys(a).sort()).toEqual([...Object.keys(b), 'hold'].sort());
       for (const [x, y] of [
         [1440, 900],
         [390, 844],
@@ -538,6 +632,13 @@ describe('ранний глобус: index.html строит слой до React
       expect(a.spinFrom).toEqual({ lon: 40.5, at: NOW - 300 });
     },
   );
+
+  it('не «/» и не «/login»: глобус не строится (чёрная первая отрисовка — да)', async () => {
+    await inlineBuilt('/subscriptions?from=landing');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(early()).toBeUndefined();
+    expect(html().contains('bb-entry-black')).toBe(true);
+  });
 
   it.each([
     ['без метки', '/?x=1', 'dark', false],
@@ -618,6 +719,36 @@ describe('ранний глобус: index.html строит слой до React
     expect(document.body.classList.contains('bb-globe-on')).toBe(true);
     expect(html().contains('bb-entry')).toBe(false);
     expect(early()?.adopted).toBe(true);
+    // страница забрала: вращение — дальше
+    expect(instances[0].resume).toHaveBeenCalled();
+    expect(layer.classList.contains('is-ready')).toBe(true);
+  });
+
+  it('конец входа (600 мс), страница не забрала слой: он гаснет и ждёт; забрала позже — виден снова', async () => {
+    await inlineBuilt();
+    act(() => instances[0].options.onReady());
+    await capture();
+    const layer = layers()[0];
+    vi.advanceTimersByTime(600);
+    expect(html().contains('bb-entry')).toBe(false);
+    // не скачком: убираются классы, остаётся переход прозрачности слоя (0,6 с)
+    expect(layer.classList.contains('is-ready')).toBe(false);
+    expect(layer.classList.contains('bb-globe-layer--instant')).toBe(false);
+    expect(instances[0].resume).not.toHaveBeenCalled();
+    expect(layer.isConnected).toBe(true);
+    await mount();
+    expect(layers()[0]).toBe(layer);
+    expect(layer.classList.contains('is-ready')).toBe(true);
+    expect(instances[0].resume).toHaveBeenCalled();
+    expect(ctor).toHaveBeenCalledTimes(1);
+  });
+
+  it('конец входа до первого кадра, страницы нет: кадр не показывает слой', async () => {
+    await inlineBuilt();
+    await capture();
+    vi.advanceTimersByTime(600);
+    act(() => instances[0].options.onReady());
+    expect(layers()[0].classList.contains('is-ready')).toBe(false);
   });
 
   it('слой ещё рисуется при монтировании: его первый кадр снимает ожидание', async () => {

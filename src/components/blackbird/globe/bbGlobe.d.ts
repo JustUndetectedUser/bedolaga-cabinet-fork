@@ -53,6 +53,8 @@ export interface BBGlobeOptions {
   spinGate?: GlobeSpinGate | false;
   /** один раз, после первого полностью нарисованного кадра */
   onReady?: (() => void) | null;
+  /** после первого полного кадра — ни одного, пока не resume() (ранний глобус входа с лендинга) */
+  hold?: boolean;
   focusX?: GlobeNumber;
   focusY?: GlobeNumber;
   zoom?: GlobeNumber;
@@ -64,6 +66,8 @@ export interface BBGlobeInstance {
   /** данные не загрузились: глобус уничтожил себя сам */
   readonly failed?: boolean;
   setColors(colors: Partial<GlobeColors>): void;
+  /** конец hold: вращение дальше с того места, где стоял (нет у модуля до hold — потому необязателен) */
+  resume?(): void;
   destroy(): void;
 }
 

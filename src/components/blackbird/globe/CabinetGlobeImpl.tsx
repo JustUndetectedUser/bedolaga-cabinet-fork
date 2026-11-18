@@ -87,7 +87,7 @@ function createLayer(g: LoadedGlobe): Layer | null {
 }
 
 /**
- * Слой, который инлайн-скрипт index.html построил до бандла (вход с лендинга):
+ * Слой, который инлайн-скрипт index.html построил до страницы (вход с лендинга):
  * тот же холст, без второй загрузки. Не загрузил данные — как сегодня: глобуса
  * нет до перезагрузки.
  */
@@ -101,9 +101,13 @@ function adoptEarly(): Layer | null {
     return null;
   }
   const layer = wrapLayer(early.el, early.globe, early.colors);
-  // is-ready (и «сразу, без проявления») он ставит себе сам
+  // is-ready (и «сразу, без проявления») он ставит себе сам; погашенный на конце
+  // входа (страница опоздала) проявляется снова
   layer.ready = early.ready;
+  if (early.ready) early.el.classList.add('is-ready');
   early.onReady = () => markReady(layer);
+  // построен с hold: страница на месте — вращение дальше, с того места, где стоял
+  early.globe.resume?.();
   return layer;
 }
 
@@ -143,7 +147,7 @@ function wrapLayer(el: HTMLDivElement, globe: BBGlobeInstance, built: GlobeColor
   failObserver.observe(el, { childList: true });
 
   // Тема: класс light/dark на <html>, палитра оператора — переменные в его style.
-  // Сразу — тоже: ранний слой построен до бандла, тема с тех пор могла смениться.
+  // Сразу — тоже: ранний слой построен до страницы, тема с тех пор могла смениться.
   const recolor = () => {
     const next = globeColors(isDark(), document.body);
     if (sameColors(next, colors)) return;
@@ -250,7 +254,7 @@ function take(layer: Layer, onReady: () => void): () => void {
  * ответа API.
  *
  * Первый кадр глобуса снимает ожидание входа с лендинга (releaseLandingEntry).
- * Слой, который на входе с лендинга построил до бандла инлайн-скрипт index.html
+ * Слой, который на входе с лендинга построил до страницы инлайн-скрипт index.html
  * (earlyGlobe.ts), забирается как есть: тот же холст, без второй загрузки.
  */
 export function CabinetGlobe({
