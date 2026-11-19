@@ -34,6 +34,7 @@ const instances: {
   setColors: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
   resume: ReturnType<typeof vi.fn>;
+  checkDevice: ReturnType<typeof vi.fn>;
   /** как модуль, когда globe-data.json не загрузился: failed и пустой корень */
   fail: () => void;
 }[] = [];
@@ -45,6 +46,7 @@ class FakeGlobe {
   setColors = vi.fn();
   destroy = vi.fn();
   resume = vi.fn();
+  checked = vi.fn();
   still = false;
   failed = false;
   gpu = gpuDots;
@@ -61,10 +63,19 @@ class FakeGlobe {
       setColors: this.setColors,
       destroy: this.destroy,
       resume: this.resume,
+      checkDevice: this.checked,
       fail,
     });
   }
 }
+
+// метод прототипа, как у модуля (index.html смотрит, умеет ли модуль отложенную проверку устройства)
+(FakeGlobe.prototype as unknown as { checkDevice: (g: unknown) => void }).checkDevice = function (
+  this: FakeGlobe,
+  g: unknown,
+) {
+  this.checked(g);
+};
 
 const cabinetView = (w: number, h: number) =>
   w >= 1024
@@ -719,6 +730,106 @@ describe('ранний глобус: index.html строит слой до React
       await mount();
       expect(ctor).toHaveBeenCalledTimes(1);
       expect(early()?.adopted).toBe(true);
+    });
+  });
+
+  // Глобус до приложения рисует кадры, пока приложение запускается: кадры идут с опозданием, и проверка устройства
+  // (spinGate) остановила бы его ни за что. Поэтому он строится без неё, а проверку включает earlyGlobe.ts, когда
+  // вход кончился и страница на месте.
+  describe('проверка устройства ждёт конца входа (глобус до приложения)', () => {
+    const GATE = { frames: 30, medianMs: 8, minFps: 55, recheckMs: 5000 };
+    const GATE_AFTER = 1500;
+    async function built(width = 1440) {
+      vi.stubGlobal('innerWidth', width);
+      gpuModule();
+      emptyRoot();
+      history.replaceState(null, '', MARK);
+      inline();
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      return instances[0];
+    }
+    const gateOf = () => (early()?.layer as unknown as { gate?: unknown } | null)?.gate;
+
+    it('строится без проверки; её параметры (как у createLayer) лежат у слоя', async () => {
+      const g = await built();
+      expect(g.options.spinGate).toBe(false);
+      expect(gateOf()).toEqual(GATE);
+      expect(g.checkDevice).not.toHaveBeenCalled();
+    });
+
+    it('телефон: порог 28', async () => {
+      await built(390);
+      expect(gateOf()).toEqual({ ...GATE, minFps: 28 });
+    });
+
+    it('вход кончился, страница слой забрала: проверка включается через 1,5 с, один раз', async () => {
+      const g = await built();
+      act(() => g.options.onReady());
+      await capture();
+      await mount();
+      expect(html().contains('bb-entry')).toBe(false);
+      vi.advanceTimersByTime(GATE_AFTER - 1);
+      expect(g.checkDevice).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(g.checkDevice).toHaveBeenCalledTimes(1);
+      expect(g.checkDevice).toHaveBeenCalledWith(GATE);
+      vi.advanceTimersByTime(10_000);
+      expect(g.checkDevice).toHaveBeenCalledTimes(1);
+    });
+
+    it('скелетон держит слой, вход ещё идёт: проверки нет; кончился (предел) — через 1,5 с', async () => {
+      const g = await built();
+      act(() => g.options.onReady());
+      await capture();
+      await mount((G) => <G keepOnly />);
+      vi.advanceTimersByTime(ENTRY_CAP - 1);
+      expect(g.checkDevice).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1 + GATE_AFTER);
+      expect(g.checkDevice).toHaveBeenCalledTimes(1);
+    });
+
+    it('вход кончился без страницы (слой погас): проверка — через 1,5 с после того, как страница его забрала', async () => {
+      const g = await built();
+      act(() => g.options.onReady());
+      await capture();
+      vi.advanceTimersByTime(ENTRY_CAP + GATE_AFTER);
+      expect(g.checkDevice).not.toHaveBeenCalled();
+      await mount();
+      vi.advanceTimersByTime(GATE_AFTER - 1);
+      expect(g.checkDevice).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(g.checkDevice).toHaveBeenCalledTimes(1);
+    });
+
+    it('слой брошен (его никто не взял): проверки нет', async () => {
+      const g = await built();
+      act(() => g.options.onReady());
+      await capture();
+      vi.advanceTimersByTime(7000 + GATE_AFTER);
+      expect(early()?.dropped).toBe(true);
+      expect(g.checkDevice).not.toHaveBeenCalled();
+    });
+
+    it('без GPU (прежний путь) и у модуля без checkDevice: проверка с самого начала, как раньше', async () => {
+      await inlineBuilt();
+      expect(instances[0].options.spinGate).toEqual(GATE);
+      expect(gateOf() ?? null).toBeNull();
+      delete (window as unknown as { __bbGlobeEarly?: Early }).__bbGlobeEarly;
+      document.body.innerHTML = '';
+      instances.length = 0;
+      ctor.mockClear();
+      // модуль с gpuDots, но без checkDevice у глобуса
+      gpuDots = true;
+      class Old extends FakeGlobe {}
+      Object.defineProperty(Old.prototype, 'checkDevice', { value: undefined });
+      importMock.mockResolvedValue({ BBGlobe: Old, cabinetView, gpuDots: () => true });
+      emptyRoot();
+      history.replaceState(null, '', MARK);
+      inline();
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(instances[0].options.spinGate).toEqual(GATE);
     });
   });
 

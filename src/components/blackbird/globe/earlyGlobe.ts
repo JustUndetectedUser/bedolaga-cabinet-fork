@@ -1,4 +1,4 @@
-import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
+import type { BBGlobeInstance, GlobeColors, GlobeSpinGate } from './bbGlobe';
 
 /**
  * BlackBird: глобус, который начал грузиться до бандла. При входе с лендинга в
@@ -19,6 +19,15 @@ import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
 
 /** Проявление слоя (blackbird.css, .bb-globe-layer: 0,6 с) и запас: погасший слой уезжает за экран после него. */
 const UNCLAIMED_FADE_MS = 700;
+/**
+ * Глобус, построенный до приложения, работает без проверки устройства: пока
+ * приложение запускается, кадры идут с опозданием, и проверка остановила бы его
+ * ни за что. Она включается через столько после конца входа, когда слой у
+ * страницы (содержимое проявилось за 0,4 с, запросы страницы разошлись).
+ */
+export const GATE_AFTER_MS = 1500;
+/** Вход с лендинга кончился (settleEarlyLayer). */
+let over = false;
 
 /** Слой, построенный инлайн-скриптом. */
 export interface EarlyLayer {
@@ -32,6 +41,20 @@ export interface EarlyLayer {
   onReady: (() => void) | null;
   /** погашен на конце входа: страница его не забрала (settleEarlyLayer) */
   faded: boolean;
+  /** проверка устройства, без которой глобус построен (до приложения); null — построен с ней */
+  gate?: GlobeSpinGate | null;
+  /** проверка уже назначена (gateLater) */
+  gated?: boolean;
+}
+
+/** Включить отложенную проверку устройства: вход кончился, слой у страницы. Один раз. */
+function gateLater(early: EarlyGlobe, layer: EarlyLayer): void {
+  const gate = layer.gate;
+  if (!gate || layer.gated) return;
+  layer.gated = true;
+  setTimeout(() => {
+    if (!early.dropped) layer.globe.checkDevice?.(gate);
+  }, GATE_AFTER_MS);
 }
 
 export interface EarlyGlobe {
@@ -71,6 +94,7 @@ export function claimEarlyLayer(): EarlyLayer | null {
   const layer = early.layer;
   if (!layer) return null;
   early.adopted = true;
+  if (over) gateLater(early, layer);
   return layer;
 }
 
@@ -83,11 +107,13 @@ export function claimEarlyLayer(): EarlyLayer | null {
  * закрутится, нет — его уберёт dropEarlyLayer. Крутить невидимый — тратить кадры зря.
  */
 export function settleEarlyLayer(): void {
+  over = true;
   const early = earlyGlobe();
   const layer = early?.layer;
   if (!early || !layer || early.dropped) return;
   if (early.adopted) {
     layer.globe.resume?.();
+    gateLater(early, layer);
     return;
   }
   layer.faded = true;

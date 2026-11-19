@@ -85,6 +85,11 @@ export interface BBGlobeInstance {
   setColors(colors: Partial<GlobeColors>): void;
   /** конец hold: вращение дальше с того места, где стоял (нет у модуля до hold — потому необязателен) */
   resume?(): void;
+  /**
+   * начать проверку устройства сейчас (или заново): для глобуса, построенного до
+   * приложения без spinGate (нет у модуля до неё — потому необязателен)
+   */
+  checkDevice?(spinGate: GlobeSpinGate): void;
   destroy(): void;
 }
 

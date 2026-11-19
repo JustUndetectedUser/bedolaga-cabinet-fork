@@ -312,16 +312,23 @@
           // и его кадр не отнимает главный поток у её запуска. Не пришла за 250 мс —
           // приложение ждёт сеть, поток свободен: глобус встаёт на место сам и ждёт
           // её (hold).
+          // ahead: строится до приложения (точки на GPU). Тогда без проверки устройства
+          // (spinGate): пока приложение запускается, кадры идут с опозданием, и она
+          // остановила бы глобус ни за что. Её параметры — у слоя (layer.gate):
+          // earlyGlobe.ts включает её, когда вход кончился (checkDevice модуля).
+          let ahead = false;
           const build = (c, m) => {
             const v = c.v;
             const phone = innerWidth < 1024;
+            const gate = { frames: 30, medianMs: 8, minFps: phone ? 28 : 55, recheckMs: 5000 };
+            const later = ahead && typeof m.BBGlobe.prototype.checkDevice === 'function';
             const el = document.createElement('div');
             el.className = 'bb-globe-layer';
             el.setAttribute('aria-hidden', 'true');
             document.body.appendChild(el);
             // фон под слоем — чёрный bb-entry-black, его globeColors и дал бы
             const colors = { dot: '#ffffff', ring: '#ffffff', rain: '#ffffff', fade: 'rgb(0, 0, 0)' };
-            const layer = { el, colors, ready: false, onReady: null, faded: false };
+            const layer = { el, colors, ready: false, onReady: null, faded: false, gate: later ? gate : null };
             const view = (k) => (w, h) => m.cabinetView(w, h)[k];
             try {
               layer.globe = new m.BBGlobe(el, {
@@ -338,7 +345,7 @@
                 // вращение не отнимает главный поток у запуска приложения
                 hold: true,
                 maxFps: phone ? 30 : 0,
-                spinGate: { frames: 30, medianMs: 8, minFps: phone ? 28 : 55, recheckMs: 5000 },
+                spinGate: later ? false : gate,
                 colors,
                 focusX: view('focusX'),
                 focusY: view('focusY'),
@@ -389,6 +396,7 @@
               } catch {
                 // WebGL не дали — как без GPU
               }
+              ahead = gpu;
               if (gpu) self();
               else rendered.then(() => setTimeout(self, 250));
             })
