@@ -321,46 +321,61 @@ describe('captureLandingEntry: тёмная тема', () => {
 });
 
 describe('captureLandingEntry: светлая тема', () => {
-  it('light: чёрная накладка, без ожидания глобуса и без передачи вращения', async () => {
+  it('light: вход с глобусом, как в тёмной: #root скрыт, ожидание, вращение лендинга, метка убрана', async () => {
     document.documentElement.className = 'light';
-    go(`/?from=landing&lon=12&t=${NOW}#h`);
+    go(`/?from=landing&theme=light&bg=e5e7eb&fg=111827&lon=12&t=${NOW}#h`);
     const { captureLandingEntry, landingEntryPending, landingSpinFrom } = await entry();
     expect(captureLandingEntry(window)).toBe('light');
-    expect(html().contains('bb-entry')).toBe(false);
-    expect(landingEntryPending()).toBe(false);
-    expect(landingSpinFrom()).toBeNull();
-    expect(loadGlobeMock).not.toHaveBeenCalled();
-    expect(here()).toBe('/#h');
-    const v = veil();
-    expect(v).not.toBeNull();
-    expect(v?.parentElement).toBe(document.body);
-    expect(v?.getAttribute('aria-hidden')).toBe('true');
-    expect(v?.classList.contains('is-out')).toBe(false);
-  });
-
-  it('накладка гаснет после первой отрисовки приложения и потом убирается', async () => {
-    document.documentElement.className = 'light';
-    go('/?from=landing');
-    const { captureLandingEntry } = await entry();
-    captureLandingEntry(window);
-    vi.advanceTimersByTime(1000);
-    expect(veil()?.classList.contains('is-out')).toBe(false);
-    document.getElementById('root')?.appendChild(document.createElement('div'));
+    expect(html().contains('bb-entry')).toBe(true);
+    expect(landingEntryPending()).toBe(true);
+    expect(landingSpinFrom()).toEqual({ lon: 12, at: NOW });
     await vi.advanceTimersByTimeAsync(0);
-    expect(veil()?.classList.contains('is-out')).toBe(true);
-    await vi.advanceTimersByTimeAsync(500);
+    expect(loadGlobeMock).toHaveBeenCalled();
+    expect(here()).toBe('/#h');
     expect(veil()).toBeNull();
   });
 
-  it('приложение так и не отрисовалось: накладка всё равно гаснет', async () => {
+  it('накладки bb-entry-veil нет ни в одной теме', async () => {
+    for (const theme of ['light', 'dark']) {
+      vi.resetModules();
+      document.documentElement.className = theme;
+      go(`/?from=landing&theme=${theme}`);
+      const { captureLandingEntry, releaseLandingEntry } = await entry();
+      captureLandingEntry(window);
+      vi.advanceTimersByTime(1000);
+      expect(veil()).toBeNull();
+      releaseLandingEntry();
+    }
+  });
+
+  it('theme, bg, fg убираются из адреса, остальное на месте', async () => {
     document.documentElement.className = 'light';
-    go('/?from=landing');
+    go(`/?x=1&from=landing&theme=light&bg=e5e7eb&fg=111827&themes=2#h`);
     const { captureLandingEntry } = await entry();
     captureLandingEntry(window);
-    vi.advanceTimersByTime(6000);
-    expect(veil()?.classList.contains('is-out')).toBe(true);
-    vi.advanceTimersByTime(500);
-    expect(veil()).toBeNull();
+    expect(here()).toBe('/?x=1&themes=2#h');
+  });
+});
+
+describe('markColors: цвета лендинга из метки', () => {
+  const LIGHT = { bg: '#e5e7eb', fg: '#111827' };
+  const DARK = { bg: '#000000', fg: '#f5f5f5' };
+  it.each([
+    ['светлая с цветами', '?theme=light&bg=e5e7eb&fg=111827', true, LIGHT],
+    [
+      'другие цвета берутся как есть',
+      '?bg=f3f4f6&fg=1f2937',
+      true,
+      { bg: '#f3f4f6', fg: '#1f2937' },
+    ],
+    ['верхний регистр', '?bg=E5E7EB&fg=111827', true, LIGHT],
+    ['светлая без цветов', '?theme=light', true, LIGHT],
+    ['тёмная без цветов', '?from=landing', false, DARK],
+    ['bg=red, fg=1234567', '?bg=red&fg=1234567', true, LIGHT],
+    ['bg с #', '?bg=%23e5e7eb&fg=111827', false, { bg: '#000000', fg: '#111827' }],
+  ])('%s', async (_, query, light, want) => {
+    const { markColors } = await entry();
+    expect(markColors(new URLSearchParams(query), light)).toEqual(want);
   });
 });
 
@@ -417,7 +432,7 @@ describe('первая отрисовка чёрная (index.html, bb-entry-bla
     inline();
     expect(black()).toBe(true);
     const css = [...document.head.querySelectorAll('style')].map((s) => s.textContent).join('');
-    expect(css).toContain('html.bb-entry-black body{background-color:#000}');
+    expect(css).toContain('html.bb-entry-black body{background-color:#000000}');
   });
 
   it.each([
@@ -451,14 +466,32 @@ describe('первая отрисовка чёрная (index.html, bb-entry-bla
     expect(black()).toBe(false);
   });
 
-  it('светлая: снимается, как только чёрная накладка на месте', async () => {
+  it('светлая: фон лендинга из метки держится, пока #root скрыт, и снимается с ожиданием', async () => {
     document.documentElement.className = 'light';
-    go('/?from=landing');
+    go('/?from=landing&theme=light&bg=e5e7eb&fg=111827');
     inline();
-    const { captureLandingEntry } = await entry();
+    const css = [...document.head.querySelectorAll('style')].map((s) => s.textContent).join('');
+    expect(css).toContain('html.bb-entry-black body{background-color:#e5e7eb}');
+    const { captureLandingEntry, releaseLandingEntry } = await entry();
     expect(captureLandingEntry(window)).toBe('light');
-    expect(veil()).not.toBeNull();
+    expect(black()).toBe(true);
+    expect(veil()).toBeNull();
+    releaseLandingEntry();
     expect(black()).toBe(false);
+  });
+
+  it.each([
+    ['светлая без цветов', 'light', '/?from=landing&theme=light', '#e5e7eb'],
+    ['цвета испорчены', 'light', '/?from=landing&theme=light&bg=red&fg=1234567', '#e5e7eb'],
+    ['тёмная', 'dark', '/?from=landing&theme=dark', '#000000'],
+  ])('index.html: %s — фон первой отрисовки как markColors', async (_, theme, url, bg) => {
+    document.documentElement.className = theme;
+    go(url);
+    const { markColors } = await entry();
+    expect(markColors(new URLSearchParams(location.search), theme === 'light').bg).toBe(bg);
+    inline();
+    const css = [...document.head.querySelectorAll('style')].map((s) => s.textContent).join('');
+    expect(css).toContain(`html.bb-entry-black body{background-color:${bg}}`);
   });
 
   it('входа нет (reduced motion, без метки): класс снят, если стоял', async () => {
@@ -612,10 +645,7 @@ describe('blackbird.css: числа входа', () => {
     expect(rule('.bb-globe-layer.bb-globe-layer--instant')).toMatch(/transition: none;/);
   });
 
-  it('накладка светлой темы: чёрная, гаснет за 400 мс', () => {
-    expect(rule('.bb-entry-veil')).toMatch(/background-color: #000;/);
-    const out = rule('.bb-entry-veil.is-out');
-    expect(out).toMatch(/opacity: 0;/);
-    expect(out).toMatch(/transition: opacity 0\.4s/);
+  it('накладки светлой темы больше нет (вход с глобусом в обеих темах)', () => {
+    expect(cssSource).not.toContain('.bb-entry-veil');
   });
 });

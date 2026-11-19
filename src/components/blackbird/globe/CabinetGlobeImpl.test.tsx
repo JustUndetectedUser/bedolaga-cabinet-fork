@@ -1176,9 +1176,55 @@ describe('ранний глобус: index.html строит слой до React
     expect(html().contains('bb-entry-black')).toBe(true);
   });
 
+  it('светлая тема (метка лендинга): ранний глобус строится цветами лендинга', async () => {
+    document.documentElement.className = 'light';
+    await inlineBuilt(`/?from=landing&theme=light&bg=e5e7eb&fg=111827&lon=40.5&t=${NOW - 300}`);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    // в той же записи, что globeColors читает из вычисленных стилей: при равных
+    // палитрах забранный слой не перекрашивается
+    expect((ctor.mock.calls[0][1] as Options).colors).toEqual({
+      dot: 'rgb(17, 24, 39)',
+      ring: 'rgba(17, 24, 39, 0.85)',
+      rain: 'rgba(17, 24, 39, 0.6)',
+      fade: 'rgb(229, 231, 235)',
+    });
+  });
+
+  it('тёмная тема: ранний глобус белый на фоне лендинга', async () => {
+    await inlineBuilt(`/?from=landing&theme=dark&bg=000000&fg=f5f5f5&lon=40.5&t=${NOW - 300}`);
+    expect((ctor.mock.calls[0][1] as Options).colors).toEqual({
+      dot: '#ffffff',
+      ring: '#ffffff',
+      rain: '#ffffff',
+      fade: 'rgb(0, 0, 0)',
+    });
+  });
+
+  it('светлый ранний слой забран: палитра как у лендинга — без перекраски, другая — один setColors', async () => {
+    document.documentElement.className = 'light';
+    await inlineBuilt(`/?from=landing&theme=light&bg=e5e7eb&fg=111827&lon=40.5&t=${NOW - 300}`);
+    await capture();
+    document.body.style.backgroundColor = 'rgb(229, 231, 235)';
+    document.body.style.color = 'rgb(17, 24, 39)';
+    await mount();
+    await act(settle);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(early()?.adopted).toBe(true);
+    expect(instances[0].setColors).not.toHaveBeenCalled();
+    // палитра оператора другая (переменные в style <html>): слой тот же, цвета новые
+    document.body.style.backgroundColor = 'rgb(243, 244, 246)';
+    document.documentElement.style.setProperty('--color-light-bg', '243, 244, 246');
+    await act(settle);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(instances[0].setColors).toHaveBeenCalledTimes(1);
+    expect(instances[0].setColors).toHaveBeenCalledWith(
+      expect.objectContaining({ dot: 'rgb(17, 24, 39)', fade: 'rgb(243, 244, 246)' }),
+    );
+    document.documentElement.style.removeProperty('--color-light-bg');
+  });
+
   it.each([
     ['без метки', '/?x=1', 'dark', false],
-    ['светлая тема', '/?from=landing', 'light', false],
     ['reduced motion', '/?from=landing', 'dark', true],
   ])('%s: ничего не грузит и не строит', async (_, url, theme, reduced) => {
     document.documentElement.className = theme;

@@ -22,18 +22,17 @@ import { dropEarlyLayer, settleEarlyLayer } from './earlyGlobe';
  *   · прошло ENTRY_CAP_MS от начала документа;
  *   · страницу вернули из кэша страниц («Назад»).
  *   Содержимое проявляется за ENTRY_FADE_MS с подъёмом (bb-entry-in).
- * - Светлая тема: ожидания и передачи глобуса нет. Лендинг не знает темы
- *   кабинета и гаснет так же, поэтому чёрная накладка продолжает его чёрный и
- *   гаснет за ENTRY_FADE_MS после первой отрисовки приложения.
+ * - Светлая тема — так же (с 19.11: кабинет всегда открывается в теме
+ *   лендинга, её передаёт метка theme, ставит скрипт темы index.html).
  * - Без метки, при «уменьшить движение» — ничего (null), страница как обычно.
  *
- * Первую отрисовку (до бандла) красит в чёрный инлайн-скрипт index.html
- * (data-hint="landing-entry", класс bb-entry-black): тёмная тема держит его,
- * пока #root скрыт, светлая снимает, как только накладка на месте. В тёмной
- * теме тот же скрипт сразу грузит глобус и строит его слой, не дожидаясь
- * страницы (earlyGlobe.ts): CabinetGlobe его забирает.
+ * Первую отрисовку (до бандла) красит в фон лендинга инлайн-скрипт index.html
+ * (data-hint="landing-entry", класс bb-entry-black — имя с тех пор, когда фон
+ * был только чёрным): цвет — bg метки (markColors), он держится, пока #root
+ * скрыт. Тот же скрипт сразу грузит глобус и строит его слой цветами
+ * лендинга, не дожидаясь страницы (earlyGlobe.ts): CabinetGlobe его забирает.
  *
- * Метку (from, lon, t, fly) убираем из адреса всегда: она одноразовая, а адрес
+ * Метку (from, lon, t, fly, theme, bg, fg) убираем из адреса всегда: она одноразовая, а адрес
  * могут сохранить или переслать. Остальные параметры и hash не трогаем.
  * Вызывается один раз при старте, до createRoot (main.tsx): метку читаем до
  * редиректов роутера (переход на /login её бы потерял), а после входа на
@@ -73,14 +72,33 @@ const SPIN_FROM_MAX_SKEW_MS = 10 * 60 * 1000;
  */
 export const EARLY_HOLD_MS = 7000;
 /**
- * Светлая тема: приложение так и не отрисовалось — накладка всё равно гаснет.
- * Больше, чем main.tsx ждёт перед первой отрисовкой (словари — до 5 с,
- * палитра — до 1,5 с), чтобы срабатывать только при поломке.
+ * Части query с меткой (from, lon, t, fly — перелёт глобуса для index.html;
+ * theme, bg, fg — тема лендинга и её цвета); лендинг имён не кодирует.
  */
-const VEIL_MAX_MS = 6000;
+const MARK_PART = /^(from|lon|t|fly|theme|bg|fg)(=|$)/;
+/** Цвет из метки: ровно 6 шестнадцатеричных цифр без «#». */
+const HEX6 = /^[0-9a-f]{6}$/i;
+/**
+ * Цвета лендинга по умолчанию (фон и текст его палитр, site.css роли landing:
+ * держать равными), если метка их не принесла или принесла не то.
+ */
+const LANDING_COLORS = {
+  dark: { bg: '#000000', fg: '#f5f5f5' },
+  light: { bg: '#e5e7eb', fg: '#111827' },
+} as const;
 
-/** Части query с меткой (from, lon, t, fly — перелёт глобуса для index.html); лендинг имён не кодирует. */
-const MARK_PART = /^(from|lon|t|fly)(=|$)/;
+/**
+ * Фон и текст лендинга из метки (bg, fg) как #rrggbb; неверные или нет —
+ * цвета лендинга для темы кабинета. Тем же правилом их читает инлайн-скрипт
+ * index.html (data-hint="landing-entry"): менять вместе, равенство проверяет
+ * тест.
+ */
+export function markColors(params: URLSearchParams, light: boolean): { bg: string; fg: string } {
+  const own = light ? LANDING_COLORS.light : LANDING_COLORS.dark;
+  const hex = (value: string | null, fallback: string) =>
+    value && HEX6.test(value) ? `#${value.toLowerCase()}` : fallback;
+  return { bg: hex(params.get('bg'), own.bg), fg: hex(params.get('fg'), own.fg) };
+}
 /** Класс инлайн-скрипта index.html: фон страницы чёрный, пока не начался вход. */
 const BLACK = 'bb-entry-black';
 
@@ -106,37 +124,6 @@ function stripMark(win: Window): void {
   win.history.replaceState(win.history.state, '', `${pathname}${query}${hash}`);
 }
 
-/** Чёрная накладка светлой темы: гаснет, как только приложение что-то отрисовало в #root. */
-function showVeil(doc: Document): void {
-  const veil = doc.createElement('div');
-  veil.className = 'bb-entry-veil';
-  veil.setAttribute('aria-hidden', 'true');
-  // main.tsx — модуль в конце body: body уже есть
-  doc.body.appendChild(veil);
-  const root = doc.getElementById('root');
-  let observer: MutationObserver | null = null;
-  let cap: ReturnType<typeof setTimeout> | undefined;
-  const out = () => {
-    observer?.disconnect();
-    clearTimeout(cap);
-    if (veil.classList.contains('is-out')) return;
-    // Переходу нужно состояние «до»: накладка могла ещё ни разу не пройти
-    // расчёт стилей (приложение отрисовалось в том же кадре), и тогда она
-    // пропала бы сразу, без угасания.
-    void getComputedStyle(veil).opacity;
-    veil.classList.add('is-out');
-    setTimeout(() => veil.remove(), ENTRY_FADE_MS + 100);
-  };
-  if (root) {
-    // Первый узел в #root — первая отрисовка React (до неё #root пуст: вызов —
-    // до createRoot): класс встаёт до кадра, в котором она появится на экране,
-    // и накладка гаснет начиная с этого кадра.
-    observer = new MutationObserver(out);
-    observer.observe(root, { childList: true });
-  }
-  cap = setTimeout(out, VEIL_MAX_MS);
-}
-
 /**
  * Сколько прошло от начала документа кабинета, мс. Начало — первый байт его
  * ответа: до него на экране ещё лендинг (браузер держит его кадр), а
@@ -158,9 +145,8 @@ function sinceDocument(): number {
  */
 export function captureLandingEntry(win: Window, now = sinceDocument()): LandingEntry | null {
   const entry = capture(win, now);
-  // Чёрный фон index.html: тёмная тема снимает его вместе с ожиданием, в
-  // остальных случаях он больше не нужен (у светлой уже стоит накладка).
-  if (entry !== 'dark') win.document.documentElement.classList.remove(BLACK);
+  // Фон лендинга index.html снимается вместе с ожиданием; входа нет — он не нужен.
+  if (entry === null) win.document.documentElement.classList.remove(BLACK);
   return entry;
 }
 
@@ -178,17 +164,14 @@ function capture(win: Window, now: number): LandingEntry | null {
     if (win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return null;
     const doc = win.document;
     const html = doc.documentElement;
-    if (html.classList.contains('light')) {
-      showVeil(doc);
-      return 'light';
-    }
+    const theme: LandingEntry = html.classList.contains('light') ? 'light' : 'dark';
     // t — часы лендинга на той же машине: далеко от Date.now() — ссылку открыли
     // не сразу после нажатия, продолжать нечего.
     spinFrom =
       lon !== null && t !== null && Math.abs(t - Date.now()) <= SPIN_FROM_MAX_SKEW_MS
         ? { lon, at: t }
         : null;
-    if (wait) return 'dark';
+    if (wait) return theme;
     html.classList.add('bb-entry');
     // «Назад» из кэша страниц, пока ожидание не снято: страницу показывают как
     // есть, без входа (её таймеры стояли, пока она лежала в кэше)
@@ -219,7 +202,7 @@ function capture(win: Window, now: number): LandingEntry | null {
         },
         () => releaseLandingEntry(),
       );
-    return 'dark';
+    return theme;
   } catch {
     return null;
   }
