@@ -259,10 +259,27 @@ html.bb-entry-in .bb-globe-shade {
 }
 
 /* Смена темы переключателем (src/components/blackbird/themeReveal.ts): новая тема раскрывается кругом от точки
-   нажатия поверх старой. Круг рисует скрипт (clip-path у ::view-transition-new(root)); собственное растворение
-   перехода браузера выключено, иначе старая тема просвечивала бы сквозь новую. */
-::view-transition-old(root),
-::view-transition-new(root) {
+   нажатия поверх старой за 0,5 с. Круг - CSS-анимация нового вида перехода, браузер запускает её вместе с переходом,
+   с первого кадра; скрипт до перехода ставит класс bb-reveal и где и докуда (--bb-reveal-x, --bb-reveal-y - точка
+   нажатия, --bb-reveal-r - до дальнего угла окна). Собственное растворение перехода браузера выключено, иначе старая
+   тема просвечивала бы сквозь новую. Раньше круг запускал скрипт после ready: в Firefox на кадр раньше был виден весь
+   новый вид - вспышка. */
+:root.bb-reveal::view-transition-old(root),
+:root.bb-reveal::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+}
+
+:root.bb-reveal::view-transition-new(root) {
+  animation: bb-reveal 0.5s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes bb-reveal {
+  from {
+    clip-path: circle(0 at var(--bb-reveal-x) var(--bb-reveal-y));
+  }
+
+  to {
+    clip-path: circle(var(--bb-reveal-r) at var(--bb-reveal-x) var(--bb-reveal-y));
+  }
 }

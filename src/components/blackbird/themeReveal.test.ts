@@ -18,7 +18,7 @@ vi.mock('../../api/themeColors', () => ({
   themeColorsApi: { getEnabledThemes: () => Promise.resolve({ dark: true, light: true }) },
 }));
 
-type Run = { update: () => void; resolve: () => void; ready: Promise<void> };
+type Run = { update: () => void; resolve: () => void; finish: () => void; ready: Promise<void> };
 let runs: Run[] = [];
 let anims: Array<[Keyframe | PropertyIndexedKeyframes, KeyframeAnimationOptions]> = [];
 let reduce = false;
@@ -37,11 +37,15 @@ beforeEach(() => {
   Object.assign(document, {
     startViewTransition: (update: () => void) => {
       let resolve = () => {};
+      let finish = () => {};
       const ready = new Promise<void>((r) => {
         resolve = r;
       });
-      runs.push({ update, resolve, ready });
-      return { ready, updateCallbackDone: ready, finished: ready };
+      const finished = new Promise<void>((r) => {
+        finish = r;
+      });
+      runs.push({ update, resolve, finish, ready });
+      return { ready, updateCallbackDone: ready, finished };
     },
   });
   document.documentElement.animate = ((
@@ -72,30 +76,35 @@ const run = async (i = 0) => {
   await Promise.resolve();
   await Promise.resolve();
 };
-const circle = (x: number, y: number, r: number) => `circle(${r}px at ${x}px ${y}px)`;
+/** Где и докуда круг: --bb-reveal-x, -y, -r на <html> (blackbird.css рисует его по ним). */
+const vars = () =>
+  ['--bb-reveal-x', '--bb-reveal-y', '--bb-reveal-r'].map(
+    (k) => document.documentElement.style.getPropertyValue(k) || null,
+  );
+const finish = async (i = 0) => {
+  runs[i].finish();
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 describe('applyThemeClass: круг от нажатия', () => {
-  it('с переходом: класс меняется внутри перехода, круг от последнего нажатия', async () => {
+  it('с переходом: где и докуда — до перехода, класс темы — внутри, круг рисует CSS с первого кадра', async () => {
     const { applyThemeClass, armThemeReveal, rememberPointer } = await mod();
     rememberPointer({ clientX: 900, clientY: 40 });
     armThemeReveal();
     applyThemeClass(document.documentElement, 'light');
     expect(runs).toHaveLength(1);
+    expect(html().contains('bb-reveal')).toBe(true);
+    // дальний угол от (900, 40) в окне jsdom 1024 x 768 — (0, 768)
+    expect(vars()).toEqual(['900px', '40px', `${Math.ceil(Math.hypot(900, 728))}px`]);
     expect(html().contains('dark')).toBe(true);
     await run();
     expect(html().contains('light') && !html().contains('dark')).toBe(true);
-    // дальний угол от (900, 40) в окне jsdom 1024 x 768 — (0, 768)
-    const r = Math.ceil(Math.hypot(900, 728));
-    expect(anims).toEqual([
-      [
-        { clipPath: [circle(900, 40, 0), circle(900, 40, r)] },
-        {
-          duration: 500,
-          easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
-          pseudoElement: '::view-transition-new(root)',
-        },
-      ],
-    ]);
+    // круг не запускает скрипт после ready: в Firefox кадр раньше был виден весь новый вид — вспышка
+    expect(anims).toEqual([]);
+    await finish();
+    expect(html().contains('bb-reveal')).toBe(false);
+    expect(vars()).toEqual([null, null, null]);
   });
 
   it('нажатие старше 1 с или его нет: круг от центра окна', async () => {
@@ -106,8 +115,7 @@ describe('applyThemeClass: круг от нажатия', () => {
     armThemeReveal();
     applyThemeClass(document.documentElement, 'light');
     vi.useRealTimers();
-    await run();
-    expect(anims[0][0].clipPath).toEqual([circle(512, 384, 0), circle(512, 384, 640)]);
+    expect(vars()).toEqual(['512px', '384px', '640px']);
   });
 
   it('без просьбы (первая отрисовка, системная тема, API): сразу', async () => {
@@ -178,7 +186,13 @@ describe('blackbird.css', () => {
   it('собственное растворение перехода выключено: видна только смена кругом', () => {
     const css = readFileSync(join(import.meta.dirname, '../../styles/blackbird.css'), 'utf-8');
     expect(css).toMatch(
-      /::view-transition-old\(root\),\s*::view-transition-new\(root\)\s*\{\s*animation: none;\s*mix-blend-mode: normal;\s*\}/,
+      /:root\.bb-reveal::view-transition-old\(root\),\s*:root\.bb-reveal::view-transition-new\(root\)\s*\{\s*animation: none;\s*mix-blend-mode: normal;\s*\}/,
+    );
+    expect(css).toMatch(
+      /\n:root\.bb-reveal::view-transition-new\(root\)\s*\{\s*animation: bb-reveal 0\.5s cubic-bezier\(0\.65, 0, 0\.35, 1\) both;\s*\}/,
+    );
+    expect(css).toMatch(
+      /@keyframes bb-reveal\s*\{\s*from\s*\{\s*clip-path: circle\(0 at var\(--bb-reveal-x\) var\(--bb-reveal-y\)\);\s*\}\s*to\s*\{\s*clip-path: circle\(var\(--bb-reveal-r\) at var\(--bb-reveal-x\) var\(--bb-reveal-y\)\);/,
     );
   });
 });

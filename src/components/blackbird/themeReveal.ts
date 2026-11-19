@@ -3,10 +3,14 @@
  * переключатель лендинга). Переключатель темы (шапка, меню, палитра команд —
  * все зовут toggleTheme из useTheme) просит круг: armThemeReveal(). Класс
  * темы на <html> ставит applyThemeClass (эффект useTheme): с просьбой — внутри
- * document.startViewTransition, и новая тема раскрывается кругом
- * (clip-path у ::view-transition-new(root)) от последнего нажатия, если ему не
- * больше POINTER_FRESH_MS (иначе от центра окна), до дальнего угла окна за
- * REVEAL_MS. Собственное растворение перехода выключено в blackbird.css.
+ * document.startViewTransition, и новая тема раскрывается кругом от последнего
+ * нажатия, если ему не больше POINTER_FRESH_MS (иначе от центра окна), до
+ * дальнего угла окна за 0,5 с. Круг — CSS-анимация нового вида (blackbird.css,
+ * :root.bb-reveal, keyframes bb-reveal), браузер запускает её вместе с
+ * переходом, с первого кадра; отсюда до перехода — только где и докуда
+ * (--bb-reveal-x, --bb-reveal-y, --bb-reveal-r на <html>) и класс bb-reveal,
+ * убираются, когда переход кончился. (Круг, запущенный отсюда после ready,
+ * в Firefox опаздывал на кадр: весь новый вид — вспышка, 19.11.)
  * Без View Transitions, при «уменьшить движение», без просьбы (первая
  * отрисовка, системная тема, тема выключена по API) — класс сразу.
  *
@@ -18,7 +22,6 @@
 type Theme = 'dark' | 'light';
 type Point = { x: number; y: number; t: number };
 
-export const REVEAL_MS = 500;
 /** Нажатие старше этого — не то, что сменило тему (клавиатура, палитра команд). */
 export const POINTER_FRESH_MS = 1000;
 
@@ -73,6 +76,17 @@ export function applyThemeClass(root: HTMLElement, theme: Theme): void {
   const win = doc.defaultView ?? window;
   const fresh = lastPointer && Date.now() - lastPointer.t <= POINTER_FRESH_MS ? lastPointer : null;
   const at = fresh ?? { x: win.innerWidth / 2, y: win.innerHeight / 2 };
+  const r = Math.ceil(
+    Math.hypot(Math.max(at.x, win.innerWidth - at.x), Math.max(at.y, win.innerHeight - at.y)),
+  );
+  const done = () => {
+    root.classList.remove('bb-reveal');
+    for (const name of REVEAL_VARS) root.style.removeProperty(name);
+  };
+  root.style.setProperty(REVEAL_VARS[0], `${at.x}px`);
+  root.style.setProperty(REVEAL_VARS[1], `${at.y}px`);
+  root.style.setProperty(REVEAL_VARS[2], `${r}px`);
+  root.classList.add('bb-reveal');
   pending = { theme };
   let vt: ViewTransition;
   try {
@@ -83,26 +97,12 @@ export function applyThemeClass(root: HTMLElement, theme: Theme): void {
     });
   } catch {
     pending = null;
+    done();
     setClass(root, theme);
     return;
   }
-  const r = Math.ceil(
-    Math.hypot(Math.max(at.x, win.innerWidth - at.x), Math.max(at.y, win.innerHeight - at.y)),
-  );
-  const circle = (rad: number) => `circle(${rad}px at ${at.x}px ${at.y}px)`;
-  vt.ready.then(
-    () => {
-      root.animate(
-        { clipPath: [circle(0), circle(r)] },
-        {
-          duration: REVEAL_MS,
-          easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
-          pseudoElement: '::view-transition-new(root)',
-        },
-      );
-    },
-    () => {
-      // переход пропущен: класс всё равно ставит его колбэк
-    },
-  );
+  vt.finished.then(done, done);
 }
+
+/** Где и докуда круг (blackbird.css, keyframes bb-reveal). */
+const REVEAL_VARS = ['--bb-reveal-x', '--bb-reveal-y', '--bb-reveal-r'] as const;
