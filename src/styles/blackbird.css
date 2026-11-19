@@ -257,3 +257,12 @@ html.bb-entry-in .bb-globe-shade {
     transition: opacity 0.4s ease-out;
   }
 }
+
+/* Смена темы переключателем (src/components/blackbird/themeReveal.ts): новая тема раскрывается кругом от точки
+   нажатия поверх старой. Круг рисует скрипт (clip-path у ::view-transition-new(root)); собственное растворение
+   перехода браузера выключено, иначе старая тема просвечивала бы сквозь новую. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}

@@ -4,6 +4,8 @@ import { themeColorsApi } from '../api/themeColors';
 import { STORAGE_KEYS } from '../config/constants';
 import { safeLocal } from '../utils/safeStorage';
 import { getTelegramColorScheme } from './useTelegramSDK';
+// BlackBird: смена темы переключателем — кругом из точки нажатия
+import { applyThemeClass, armThemeReveal } from '../components/blackbird/themeReveal';
 
 type Theme = 'dark' | 'light';
 
@@ -151,13 +153,8 @@ export function useTheme() {
       }
     }
 
-    if (theme === 'light') {
-      root.classList.remove('dark');
-      root.classList.add('light');
-    } else {
-      root.classList.remove('light');
-      root.classList.add('dark');
-    }
+    // BlackBird: класс темы — через applyThemeClass (круг, если его попросил переключатель)
+    applyThemeClass(root, theme);
 
     safeLocal.setItem(THEME_KEY, theme);
     // Notify other useTheme() instances in the same tab
@@ -209,6 +206,8 @@ export function useTheme() {
       const newTheme = prev === 'dark' ? 'light' : 'dark';
       // Only toggle if the new theme is enabled
       if (enabledThemes[newTheme]) {
+        // BlackBird: переключатель — смена кругом из точки нажатия
+        armThemeReveal();
         return newTheme;
       }
       return prev;
