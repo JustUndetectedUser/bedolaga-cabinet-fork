@@ -122,7 +122,10 @@ describe('тема лендинга при входе (index.html, скрипт 
     go('/?from=landing&theme=light');
     themeScript();
     const { useTheme } = await import('../../../hooks/useTheme');
-    const { result } = renderHook(() => useTheme());
+    const { result, unmount } = renderHook(() => useTheme());
     expect(result.current.theme).toBe('light');
+    // до снятия заглушек (afterEach): эффекты хука после теста иначе зовут
+    // matchMedia, которой в jsdom нет, — необработанная ошибка, vitest выходит с 1
+    unmount();
   });
 });
