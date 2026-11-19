@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Логотип в шапке: не на главной ведёт на главную, на главной — на лендинг
- * (в вебе в той же вкладке, в Mini App — через openLink Telegram).
+ * (в вебе в той же вкладке, в Mini App — через openLink Telegram), в теме
+ * кабинета: ?theme=light|dark по классу <html> в момент клика (лендинг её
+ * применяет и запоминает).
  */
 
 const { openLink, assign, platform } = vi.hoisted(() => ({
@@ -32,6 +34,7 @@ afterEach(() => {
   openLink.mockReset();
   assign.mockReset();
   platform.value = 'web';
+  document.documentElement.className = '';
 });
 
 async function renderAt(path: string, landing: string | undefined, click?: MouseEventInit) {
@@ -70,17 +73,25 @@ describe('логотип в шапке', () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  it('на главной в вебе — лендинг в той же вкладке', async () => {
+  it('на главной в вебе — лендинг в той же вкладке, в теме кабинета', async () => {
+    document.documentElement.className = 'dark';
     const onClick = await renderAt('/', LANDING);
-    expect(assign).toHaveBeenCalledWith(LANDING);
+    expect(assign).toHaveBeenCalledWith('https://landing.example/?theme=dark');
     expect(openLink).not.toHaveBeenCalled();
     expect(onClick).toHaveBeenCalledOnce();
   });
 
-  it('на главной в Telegram — лендинг через openLink', async () => {
+  it('светлая тема — ?theme=light; прочие части адреса лендинга на месте', async () => {
+    document.documentElement.className = 'light';
+    await renderAt('/', 'https://landing.example/?utm=x#top');
+    expect(assign).toHaveBeenCalledWith('https://landing.example/?utm=x&theme=light#top');
+  });
+
+  it('на главной в Telegram — лендинг через openLink, тоже с темой', async () => {
     platform.value = 'telegram';
+    document.documentElement.className = 'light';
     await renderAt('/', LANDING);
-    expect(openLink).toHaveBeenCalledWith(LANDING);
+    expect(openLink).toHaveBeenCalledWith('https://landing.example/?theme=light');
     expect(assign).not.toHaveBeenCalled();
   });
 
