@@ -23,7 +23,12 @@ if (earlyGlobe()) void load();
 
 const Impl = lazy(load);
 
-export function CabinetGlobe(props: { onReady?: () => void; keepOnly?: boolean; busy?: boolean }) {
+export function CabinetGlobe(props: {
+  onReady?: () => void;
+  keepOnly?: boolean;
+  busy?: boolean;
+  quiet?: boolean;
+}) {
   return (
     <Suspense fallback={null}>
       <Impl {...props} />

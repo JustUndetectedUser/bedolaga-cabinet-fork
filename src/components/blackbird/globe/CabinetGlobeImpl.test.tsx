@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { StrictMode } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -112,7 +114,12 @@ afterEach(() => {
   document.documentElement.className = '';
 });
 
-type Globe = React.ComponentType<{ onReady?: () => void; keepOnly?: boolean; busy?: boolean }>;
+type Globe = React.ComponentType<{
+  onReady?: () => void;
+  keepOnly?: boolean;
+  busy?: boolean;
+  quiet?: boolean;
+}>;
 /** Пределы входа с лендинга (landingEntry.ts): от начала документа, мс. */
 const ENTRY_CAP = 5000;
 const GLOBE_LATE = 1500;
@@ -421,9 +428,100 @@ describe('CabinetGlobe', () => {
   });
 });
 
+/**
+ * BlackBird (решение владельца 19.11): глобус фоном всех клиентских страниц, то
+ * же место и масштаб, что на «Главной», один слой на всё приложение — при
+ * переходе между страницами он не перестраивается. На рабочих страницах
+ * (quiet: всё, кроме «Главной» и входа) он приглушён: body.bb-globe-quiet,
+ * пока у слоя нет ни одной «громкой» страницы. Тихая страница не считается
+ * готовностью для входа с лендинга.
+ */
+describe('CabinetGlobe quiet: фон рабочих страниц', () => {
+  const body = () => document.body.classList;
+
+  it('рабочая страница: общий слой строится, body bb-globe-on и bb-globe-quiet', async () => {
+    await mount((G) => <G quiet />);
+    expect(layers()).toHaveLength(1);
+    act(() => instances[0].options.onReady());
+    expect(body().contains('bb-globe-on')).toBe(true);
+    expect(body().contains('bb-globe-quiet')).toBe(true);
+  });
+
+  it('вместе с «Главной» (громкая страница): не приглушён', async () => {
+    await mount((G) => (
+      <>
+        <G quiet />
+        <G />
+      </>
+    ));
+    act(() => instances[0].options.onReady());
+    expect(layers()).toHaveLength(1);
+    expect(body().contains('bb-globe-on')).toBe(true);
+    expect(body().contains('bb-globe-quiet')).toBe(false);
+  });
+
+  it('с «Главной» на рабочую: тот же слой, приглушается; обратно — громко', async () => {
+    const { rerender, CabinetGlobe: G } = await mount((G) => <G />);
+    act(() => instances[0].options.onReady());
+    const layer = layers()[0];
+    expect(body().contains('bb-globe-quiet')).toBe(false);
+    rerender(<G quiet key="work" />);
+    await act(settle);
+    expect(layers()).toHaveLength(1);
+    expect(layers()[0]).toBe(layer);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(body().contains('bb-globe-quiet')).toBe(true);
+    rerender(<G key="home" />);
+    await act(settle);
+    expect(layers()[0]).toBe(layer);
+    expect(body().contains('bb-globe-quiet')).toBe(false);
+  });
+
+  it('рабочая страница ушла и слой никому не нужен: классы сняты', async () => {
+    const { unmount } = await mount((G) => <G quiet />);
+    act(() => instances[0].options.onReady());
+    unmount();
+    await act(settle);
+    expect(body().contains('bb-globe-on')).toBe(false);
+    expect(body().contains('bb-globe-quiet')).toBe(false);
+  });
+
+  it('blackbird.css: приглушённый слой — 0.4 на ПК и 0.3 на телефоне', () => {
+    const css = readFileSync(join(import.meta.dirname, '../../../styles/blackbird.css'), 'utf-8');
+    expect(css).toMatch(
+      /body\.bb-globe-quiet \.bb-globe-layer\.is-ready\s*\{\s*opacity: 0\.4;\s*\}/,
+    );
+    expect(css).toMatch(
+      /@media \(max-width: 1023px\)\s*\{\s*body\.bb-globe-quiet \.bb-globe-layer\.is-ready\s*\{\s*opacity: 0\.3;\s*\}\s*\}/,
+    );
+  });
+
+  it('App.tsx: тихий глобус у всех клиентских страниц (ProtectedRoute), у админки — нет', () => {
+    const app = readFileSync(join(import.meta.dirname, '../../../App.tsx'), 'utf-8');
+    const protectedRoute = app.slice(
+      app.indexOf('function ProtectedRoute('),
+      app.indexOf('function AdminRoute('),
+    );
+    const adminRoute = app.slice(
+      app.indexOf('function AdminRoute('),
+      app.indexOf('function LazyPage('),
+    );
+    expect(protectedRoute.match(/<CabinetGlobe quiet \/>/g)).toHaveLength(2);
+    expect(adminRoute).not.toContain('CabinetGlobe');
+  });
+});
+
 describe('CabinetGlobe: вход с лендинга (landingEntry)', () => {
   const NOW = Date.UTC(2026, 10, 18, 12, 0, 0);
   const html = () => document.documentElement.classList;
+
+  it('рабочая страница (quiet) ожидание входа не снимает: только «Главная» и вход', async () => {
+    await capture();
+    await mount((G) => <G quiet />);
+    act(() => instances[0].options.onReady());
+    await act(settle);
+    expect(html().contains('bb-entry')).toBe(true);
+  });
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });

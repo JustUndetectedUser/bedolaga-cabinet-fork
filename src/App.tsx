@@ -27,6 +27,7 @@ function lazyWithRetry<T extends ComponentType<unknown>>(factory: () => Promise<
 import { useBlockingStore } from './store/blocking';
 // BlackBird: вход с лендинга (глобус как загрузка)
 import { EntryGate } from './components/blackbird/globe/EntryGate';
+import { CabinetGlobe } from './components/blackbird/globe/CabinetGlobe';
 import Layout from './components/layout/Layout';
 import PageLoader from './components/common/PageLoader';
 import {
@@ -204,14 +205,18 @@ function ProtectedRoute({
   }
 
   // След пользователя: каждый открытый экран уходит в «Активность» его карточки.
+  // BlackBird: глобус фоном всех клиентских страниц (приглушённый; «Главная»
+  // ставит свой — громкий), один слой на всё приложение. Админке — нет.
   return withLayout ? (
     <Layout>
       <ScreenViewReporter />
+      <CabinetGlobe quiet />
       {children}
     </Layout>
   ) : (
     <>
       <ScreenViewReporter />
+      <CabinetGlobe quiet />
       {children}
     </>
   );

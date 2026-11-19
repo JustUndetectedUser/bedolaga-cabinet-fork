@@ -18,6 +18,8 @@ interface Layer {
   ready: boolean;
   dead: boolean;
   users: number;
+  // BlackBird: из них «громкие» (не quiet: «Главная», вход); нет ни одной — слой приглушён
+  loud: number;
   readyCbs: Set<() => void>;
   timer: ReturnType<typeof setTimeout> | undefined;
   stop: () => void;
@@ -112,6 +114,17 @@ function adoptEarly(): Layer | null {
   return layer;
 }
 
+/**
+ * BlackBird: body.bb-globe-quiet — у слоя только рабочие страницы (quiet), он
+ * приглушён (blackbird.css); есть «Главная» или вход — в полную силу.
+ */
+function syncQuiet(layer: Layer) {
+  document.body.classList.toggle(
+    'bb-globe-quiet',
+    layer.ready && !layer.dead && layer.users > 0 && layer.loud === 0,
+  );
+}
+
 /** Первый кадр глобуса: слой проявляется, страницы узнают. */
 function markReady(layer: Layer) {
   layer.ready = true;
@@ -120,6 +133,7 @@ function markReady(layer: Layer) {
   if (landingEntryPending()) layer.el.classList.add('bb-globe-layer--instant');
   layer.el.classList.add('is-ready');
   if (layer.users > 0) document.body.classList.add('bb-globe-on');
+  syncQuiet(layer);
   for (const cb of layer.readyCbs) cb();
 }
 
@@ -132,6 +146,7 @@ function wrapLayer(el: HTMLDivElement, globe: BBGlobeInstance, built: GlobeColor
     ready: false,
     dead: false,
     users: 0,
+    loud: 0,
     readyCbs: new Set(),
     timer: undefined,
     stop: () => {},
@@ -208,7 +223,7 @@ function destroyLayer(layer: Layer) {
   // не трогает.
   const owned = shared === layer && layer.el.isConnected;
   if (shared === layer) shared = null;
-  if (owned) document.body.classList.remove('bb-globe-on');
+  if (owned) document.body.classList.remove('bb-globe-on', 'bb-globe-quiet');
   layer.stop();
   try {
     layer.globe.destroy();
@@ -218,29 +233,31 @@ function destroyLayer(layer: Layer) {
   layer.el.remove();
 }
 
-/** Взять слой (создать при первом); вернуть — отпустить. */
-function acquire(g: LoadedGlobe, onReady: () => void): (() => void) | null {
+/** Взять слой (создать при первом); вернуть — отпустить. quiet — рабочая страница (приглушённый фон). */
+function acquire(g: LoadedGlobe, onReady: () => void, quiet = false): (() => void) | null {
   if (broken) return null;
   // ранний слой (вход с лендинга) — если он есть; иначе новый
   shared ??= adoptEarly() ?? (broken ? null : createLayer(g));
-  return shared ? take(shared, onReady) : null;
+  return shared ? take(shared, onReady, quiet) : null;
 }
 
 /**
  * Удержать слой, если он уже есть (скелетон «Главной»; ранний слой входа с
  * лендинга, пока loadGlobe ещё не ответил): новый не создаётся.
  */
-function keep(onReady: () => void): (() => void) | null {
+function keep(onReady: () => void, quiet = false): (() => void) | null {
   if (!shared && !broken) shared = adoptEarly();
-  return shared && !shared.dead ? take(shared, onReady) : null;
+  return shared && !shared.dead ? take(shared, onReady, quiet) : null;
 }
 
-function take(layer: Layer, onReady: () => void): () => void {
+function take(layer: Layer, onReady: () => void, quiet = false): () => void {
   clearTimeout(layer.timer);
   layer.timer = undefined;
   layer.users += 1;
+  if (!quiet) layer.loud += 1;
   layer.el.classList.remove('bb-globe-layer--parked');
   layer.readyCbs.add(onReady);
+  syncQuiet(layer);
   if (layer.ready) {
     document.body.classList.add('bb-globe-on');
     onReady();
@@ -248,6 +265,8 @@ function take(layer: Layer, onReady: () => void): () => void {
   return () => {
     layer.readyCbs.delete(onReady);
     layer.users -= 1;
+    if (!quiet) layer.loud -= 1;
+    syncQuiet(layer);
     if (layer.users > 0 || layer.dead) return;
     // Страница ушла. Следующая страница того же перехода берёт слой в тех же
     // эффектах React (вход → скелетон «Главной» → её содержимое): поэтому
@@ -257,7 +276,7 @@ function take(layer: Layer, onReady: () => void): () => void {
     queueMicrotask(() => {
       if (layer.users > 0 || layer.dead || !layer.el.isConnected) return;
       layer.el.classList.add('bb-globe-layer--parked');
-      document.body.classList.remove('bb-globe-on');
+      document.body.classList.remove('bb-globe-on', 'bb-globe-quiet');
     });
     layer.timer = setTimeout(() => destroyLayer(layer), HANDOVER_MS);
   };
@@ -284,15 +303,22 @@ function take(layer: Layer, onReady: () => void): () => void {
  * у неё скелетон внутри), слой держат, но ожидание не снимают. Слой, который
  * построил инлайн-скрипт index.html (earlyGlobe.ts), забирается как есть: тот
  * же холст, без второй загрузки.
+ *
+ * quiet (BlackBird, 19.11) — фон рабочей страницы (все клиентские страницы,
+ * кроме «Главной» и входа; ставит ProtectedRoute): тот же слой, то же место и
+ * масштаб, но приглушённый (body.bb-globe-quiet, пока громких страниц нет), и
+ * готовностью для входа с лендинга не считается.
  */
 export function CabinetGlobe({
   onReady,
   keepOnly = false,
   busy = false,
+  quiet = false,
 }: {
   onReady?: () => void;
   keepOnly?: boolean;
   busy?: boolean;
+  quiet?: boolean;
 }): null {
   const [globe, setGlobe] = useState<LoadedGlobe | null>(() => known);
   const onReadyRef = useRef(onReady);
@@ -325,13 +351,13 @@ export function CabinetGlobe({
       readyFired.current = true;
       onReadyRef.current?.();
     };
-    const release = keepOnly || !globe ? keep(ready) : acquire(globe, ready);
+    const release = keepOnly || !globe ? keep(ready, quiet) : acquire(globe, ready, quiet);
     return release ?? undefined;
-  }, [globe, keepOnly]);
+  }, [globe, keepOnly, quiet]);
 
   // Вход с лендинга: страница готова (не скелетон, данные есть) и глобус
   // нарисован — содержимое проявляется.
-  const done = drawn && !keepOnly && !busy;
+  const done = drawn && !keepOnly && !busy && !quiet;
   useEffect(() => {
     if (done) releaseLandingEntry();
   }, [done]);
