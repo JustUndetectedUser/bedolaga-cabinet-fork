@@ -634,6 +634,200 @@ describe('ранний глобус: index.html строит слой до React
     delete (window as unknown as { __bbGlobeEarly?: Early }).__bbGlobeEarly;
     for (const el of document.head.querySelectorAll('style, link')) el.remove();
     history.replaceState(null, '', '/');
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  /** Подсказка: config.json прошлого визита (index.html кладёт его в localStorage). */
+  const HINT_KEY = 'bb-globe-config-hint';
+  const HINT = { v: 'old', servers: { PL: { name: 'Польша', region: 'eu' } } };
+  const hint = () => JSON.parse(localStorage.getItem(HINT_KEY) ?? 'null') as unknown;
+  /** Модуль, который скажет, что точки будут на GPU (bb-globe.js gpuDots()). */
+  const gpuModule = () => {
+    gpuDots = true;
+    importMock.mockResolvedValue({ BBGlobe: FakeGlobe, cabinetView, gpuDots: () => true });
+  };
+  /** Страница до приложения: #root есть и пуст. */
+  const emptyRoot = () => {
+    const root = document.createElement('div');
+    root.id = 'root';
+    document.body.prepend(root);
+    return root;
+  };
+  const MARK = `/?from=landing&lon=40.5&t=${NOW - 300}`;
+
+  describe('глобус до приложения (точки на GPU)', () => {
+    it('gpuDots() модуля → true: глобус построен, как только пришли файлы, — #root ещё пуст; не стоит (resume)', async () => {
+      gpuModule();
+      emptyRoot();
+      history.replaceState(null, '', MARK);
+      inline();
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(layers()).toHaveLength(1);
+      expect(early()?.layer?.el).toBe(layers()[0]);
+      expect(instances[0].resume).toHaveBeenCalledTimes(1);
+      // приложение отрисовалось, задержка прошла — второго глобуса нет
+      rendered();
+      await act(flush);
+      vi.advanceTimersByTime(DRAW_DELAY);
+      expect(ctor).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['модуль без gpuDots (старый)', undefined],
+      ['gpuDots() → false', () => false],
+      [
+        'gpuDots() бросает',
+        () => {
+          throw new Error('no webgl');
+        },
+      ],
+    ])('%s: до первой отрисовки приложения не строится, потом — как раньше', async (_, fn) => {
+      importMock.mockResolvedValue({
+        BBGlobe: FakeGlobe,
+        cabinetView,
+        ...(fn ? { gpuDots: fn } : {}),
+      });
+      const root = emptyRoot();
+      history.replaceState(null, '', MARK);
+      inline();
+      await act(flush);
+      expect(ctor).not.toHaveBeenCalled();
+      root.appendChild(document.createElement('main'));
+      await act(flush);
+      vi.advanceTimersByTime(DRAW_DELAY);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(instances[0].resume).not.toHaveBeenCalled();
+    });
+
+    it('вход уже кончился, когда пришли файлы: сам не строится (экран без глобуса); страница — строит', async () => {
+      gpuModule();
+      let arrived: (m: unknown) => void = () => {};
+      const mod = await importMock();
+      importMock.mockReturnValue(new Promise((r) => (arrived = r)));
+      emptyRoot();
+      history.replaceState(null, '', MARK);
+      inline();
+      await act(flush);
+      await capture();
+      const { releaseLandingEntry } = await import('./landingEntry');
+      releaseLandingEntry();
+      arrived(mod);
+      await act(flush);
+      expect(ctor).not.toHaveBeenCalled();
+      await mount();
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(early()?.adopted).toBe(true);
+    });
+  });
+
+  describe('файлы глобуса первыми', () => {
+    it('config.json и данные с высоким приоритетом, модуль — предзагрузкой с высоким', async () => {
+      await inlineBuilt();
+      expect(fetchMock).toHaveBeenCalledWith('/bb-globe/config.json', { priority: 'high' });
+      const data = document.head.querySelector('link[rel="preload"]');
+      expect(data?.getAttribute('href')).toBe('/bb-globe/globe-data.json?v=abc');
+      expect(data?.getAttribute('fetchpriority')).toBe('high');
+      const mod = document.head.querySelector('link[rel="modulepreload"]');
+      expect(mod?.getAttribute('href')).toBe('/bb-globe/bb-globe.js?v=abc');
+      expect(mod?.getAttribute('fetchpriority')).toBe('high');
+    });
+  });
+
+  describe('подсказка config.json прошлого визита', () => {
+    it('есть: модуль и данные запрашиваются сразу по ней, ответа config.json не ждём; глобус — с её странами', async () => {
+      localStorage.setItem(HINT_KEY, JSON.stringify(HINT));
+      fetchMock.mockReturnValue(new Promise(() => {}));
+      await inlineBuilt();
+      expect(importMock).toHaveBeenCalledTimes(1);
+      expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=old');
+      expect(document.head.querySelector('link[rel="preload"]')?.getAttribute('href')).toBe(
+        '/bb-globe/globe-data.json?v=old',
+      );
+      expect(ctor).toHaveBeenCalledTimes(1);
+      const [, options] = ctor.mock.calls[0] as [HTMLElement, Options];
+      expect(options.servers).toEqual(HINT.servers);
+      expect(options.dataUrl).toBe('/bb-globe/globe-data.json?v=old');
+      // свежий список запрошен тоже: он обновит подсказку
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(await early()?.load).toEqual({ config: HINT, mod: await importMock() });
+    });
+
+    it('свежий config.json пришёл: подсказка обновлена, этот вход идёт по прежней', async () => {
+      localStorage.setItem(HINT_KEY, JSON.stringify(HINT));
+      await inlineBuilt();
+      expect(hint()).toEqual(CONFIG);
+      expect(importMock).toHaveBeenCalledTimes(1);
+      expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=old');
+    });
+
+    it.each([
+      ['404', () => new Response('', { status: 404 })],
+      ['не JSON', () => new Response('<html>', { status: 200 })],
+      ['без v', () => new Response(JSON.stringify({ servers: {} }), { status: 200 })],
+      [
+        'servers — массив',
+        () => new Response(JSON.stringify({ v: 'abc', servers: [] }), { status: 200 }),
+      ],
+    ])('свежий config.json: %s — подсказка удалена', async (_, response) => {
+      localStorage.setItem(HINT_KEY, JSON.stringify(HINT));
+      fetchMock.mockResolvedValue(response());
+      await inlineBuilt();
+      expect(localStorage.getItem(HINT_KEY)).toBeNull();
+    });
+
+    it('нет: по свежему config.json, как раньше; он запоминается', async () => {
+      await inlineBuilt();
+      expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=abc');
+      expect(hint()).toEqual(CONFIG);
+      expect(ctor).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['не JSON', '{oops'],
+      ['без v', JSON.stringify({ servers: HINT.servers })],
+      ['пустой v', JSON.stringify({ v: '', servers: HINT.servers })],
+      ['servers — массив', JSON.stringify({ v: 'old', servers: [] })],
+      ['null', 'null'],
+    ])('битая (%s): как без неё', async (_, raw) => {
+      localStorage.setItem(HINT_KEY, raw);
+      await inlineBuilt();
+      expect(importMock).toHaveBeenCalledTimes(1);
+      expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=abc');
+      expect(hint()).toEqual(CONFIG);
+    });
+
+    // Review focus: хранилище недоступно (приватный режим, WebView)
+    it.each([
+      [
+        'getItem, setItem и removeItem бросают',
+        () => {
+          for (const m of ['getItem', 'setItem', 'removeItem'] as const) {
+            vi.spyOn(Storage.prototype, m).mockImplementation(() => {
+              throw new DOMException('denied', 'SecurityError');
+            });
+          }
+        },
+      ],
+      [
+        'само свойство localStorage бросает',
+        () => {
+          vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+            throw new DOMException('denied', 'SecurityError');
+          });
+        },
+      ],
+    ])(
+      'localStorage недоступен (%s): вход идёт по свежему config.json, без исключений',
+      async (_, deny) => {
+        deny();
+        await inlineBuilt();
+        expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=abc');
+        expect(ctor).toHaveBeenCalledTimes(1);
+        expect(layers()).toHaveLength(1);
+      },
+    );
   });
 
   it('до первой отрисовки приложения — только сеть: config, модуль и данные грузятся, глобус не строится', async () => {
@@ -701,7 +895,7 @@ describe('ранний глобус: index.html строит слой до React
   it('метка: config.json, модуль и слой сразу; слой декоративный, в body', async () => {
     await inlineBuilt();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('/bb-globe/config.json');
+    expect(fetchMock).toHaveBeenCalledWith('/bb-globe/config.json', { priority: 'high' });
     expect(importMock).toHaveBeenCalledTimes(1);
     expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=abc');
     // данные — параллельно с модулем, предзагрузкой в том же режиме, что fetch() модуля
@@ -709,8 +903,8 @@ describe('ранний глобус: index.html строит слой до React
     expect(data?.getAttribute('href')).toBe('/bb-globe/globe-data.json?v=abc');
     expect(data?.getAttribute('as')).toBe('fetch');
     expect(data?.getAttribute('crossorigin')).toBe('anonymous');
-    // ~78 КБ: на узком канале не отнимают полосу у бандла (тот — с высоким приоритетом)
-    expect(data?.getAttribute('fetchpriority')).toBe('low');
+    // вход с лендинга: глобус — первое, что должен увидеть человек, его файлы идут раньше бандла
+    expect(data?.getAttribute('fetchpriority')).toBe('high');
     expect(ctor).toHaveBeenCalledTimes(1);
     expect(layers()).toHaveLength(1);
     const layer = layers()[0] as HTMLElement;
@@ -924,13 +1118,53 @@ describe('ранний глобус: index.html строит слой до React
     expect(early()?.layer).toBeNull();
   });
 
-  it('нарисован до бандла: сразу виден, без проявления', async () => {
-    await inlineBuilt();
+  it('принял перелёт лендинга (fly в метке), нарисован во время ожидания: сразу виден, без проявления', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(400);
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([
+      { responseStart: 180 },
+    ] as unknown as PerformanceEntryList);
+    await inlineBuilt(`${MARK}&fly=1181.0,567.4,840.0,49.00,600`);
     act(() => instances[0].options.onReady());
     const layer = layers()[0];
     expect(layer.classList.contains('is-ready')).toBe(true);
     expect(layer.classList.contains('bb-globe-layer--instant')).toBe(true);
     expect(early()?.layer?.ready).toBe(true);
+  });
+
+  it('метка без fly (глобуса лендинга на экране не было): первый кадр проявляется как обычно, без «сразу»', async () => {
+    await inlineBuilt();
+    act(() => instances[0].options.onReady());
+    const layer = layers()[0];
+    expect(layer.classList.contains('is-ready')).toBe(true);
+    expect(layer.classList.contains('bb-globe-layer--instant')).toBe(false);
+    expect(early()?.layer?.ready).toBe(true);
+  });
+
+  // Review focus: файлы глобуса пришли позже 1,5 с, но раньше готовности страницы
+  it('файлы пришли после 1,5 с (ожидание уже снято): страница строит слой, он проявляется как обычно, без «сразу»', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(400);
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([
+      { responseStart: 180 },
+    ] as unknown as PerformanceEntryList);
+    gpuModule();
+    let arrived: (m: unknown) => void = () => {};
+    const mod = await importMock();
+    importMock.mockReturnValue(new Promise((r) => (arrived = r)));
+    rendered();
+    history.replaceState(null, '', `${MARK}&fly=1181.0,567.4,840.0,49.00,600`);
+    inline();
+    await act(flush);
+    expect(await capture()).toBe('dark');
+    vi.advanceTimersByTime(GLOBE_LATE);
+    expect(html().contains('bb-entry')).toBe(false);
+    arrived(mod);
+    await act(flush);
+    await mount();
+    expect(ctor).toHaveBeenCalledTimes(1);
+    act(() => instances[0].options.onReady());
+    const layer = layers()[0];
+    expect(layer.classList.contains('is-ready')).toBe(true);
+    expect(layer.classList.contains('bb-globe-layer--instant')).toBe(false);
   });
 
   it('React берёт готовый слой: тот же холст, без второго глобуса; ожидание снято', async () => {

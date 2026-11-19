@@ -97,4 +97,10 @@ export type BBGlobeConstructor = new (
 export interface BBGlobeModule {
   BBGlobe: BBGlobeConstructor;
   cabinetView: (w: number, h: number) => GlobeView;
+  /**
+   * Будут ли точки суши у глобуса, построенного сейчас (с непрозрачным
+   * colors.fade), на GPU. Спрашивает инлайн-скрипт index.html: с GPU глобус
+   * строится до приложения. У модуля до этой функции её нет.
+   */
+  gpuDots?: () => boolean;
 }

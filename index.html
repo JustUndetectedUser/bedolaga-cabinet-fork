@@ -193,11 +193,14 @@
           style.textContent = 'html.bb-entry-black body{background-color:#000}';
           document.head.appendChild(style);
           html.classList.add('bb-entry-black');
-          // Тёмная тема: глобус грузится сразу (сеть), а свой слой строит, не
-          // дожидаясь страницы, — React, словари и палитра его не задерживают.
-          // Слой забирает CabinetGlobe (earlyGlobe.ts), config и модуль —
-          // loadGlobe: один запрос каждого. Параметры глобуса — как в createLayer
-          // (CabinetGlobeImpl.tsx): менять вместе, их равенство проверяет тест.
+          // Тёмная тема: глобус здесь — загрузка (landingEntry.ts: #root скрыт,
+          // пока страница не готова), поэтому его файлы идут первыми, раньше
+          // бандла, а слой строится, не дожидаясь приложения: сразу, как пришли
+          // файлы, если точки будут на GPU (кадр около 1,5 мс, запуску не мешает),
+          // иначе после первой отрисовки приложения. Слой забирает CabinetGlobe
+          // (earlyGlobe.ts), config и модуль — loadGlobe: один запрос каждого.
+          // Параметры глобуса — как в createLayer (CabinetGlobeImpl.tsx): менять
+          // вместе, их равенство проверяет тест.
           const base = '%VITE_GLOBE_BASE%';
           if (!base || base.charAt(0) === '%' || html.classList.contains('light')) return;
           // глобус — только «Главная» и вход (как предзагрузка config.json выше)
@@ -223,28 +226,67 @@
               : null;
           const early = { base, layer: null, adopted: false, dropped: false };
           window.__bbGlobeEarly = early;
-          early.load = fetch(`${base}config.json`)
+          // config.json как он нужен глобусу: версия файлов и страны
+          const valid = (c) =>
+            !!c &&
+            ((typeof c.v === 'string' && c.v !== '') || Number.isFinite(c.v)) &&
+            !!c.servers &&
+            typeof c.servers === 'object' &&
+            !Array.isArray(c.servers);
+          // Подсказка: config.json прошлого визита. С ней модуль и данные
+          // запрашиваются сразу, не дожидаясь ответа на config.json (он первый в
+          // цепочке: без подсказки глобус позже на целый запрос). Хранилище может
+          // быть недоступно (приватный режим, WebView) — тогда без неё.
+          const HINT = 'bb-globe-config-hint';
+          const stored = () => {
+            try {
+              const c = JSON.parse(localStorage.getItem(HINT));
+              return valid(c) ? { v: c.v, servers: c.servers } : null;
+            } catch {
+              return null;
+            }
+          };
+          const remember = (c) => {
+            try {
+              if (c) localStorage.setItem(HINT, JSON.stringify({ v: c.v, servers: c.servers }));
+              else localStorage.removeItem(HINT);
+            } catch {
+              // нет хранилища — следующий вход пойдёт без подсказки
+            }
+          };
+          // Модуль и данные версии config.v — параллельно и с высоким приоритетом:
+          // на входе с лендинга глобус — первое, что видит человек. fetch() модуля
+          // возьмёт предзагруженные данные (as=fetch + crossorigin — тот же режим),
+          // import() — предзагруженный модуль: второго запроса нет.
+          const files = (config) => {
+            const v = encodeURIComponent(String(config.v));
+            const link = (rel, href) => {
+              const el = document.createElement('link');
+              el.rel = rel;
+              el.setAttribute('fetchpriority', 'high');
+              el.crossOrigin = 'anonymous';
+              el.href = href;
+              return el;
+            };
+            const data = link('preload', `${base}globe-data.json?v=${v}`);
+            data.setAttribute('as', 'fetch');
+            document.head.appendChild(data);
+            document.head.appendChild(link('modulepreload', `${base}bb-globe.js?v=${v}`));
+            return import(`${base}bb-globe.js?v=${v}`).then((mod) => ({ config, mod }));
+          };
+          const fresh = fetch(`${base}config.json`, { priority: 'high' })
             .then((r) => (r.ok ? r.json() : null))
-            .then((config) => {
-              if (!config) return null;
-              const v = encodeURIComponent(String(config.v));
-              // данные — параллельно с модулем: fetch() модуля возьмёт этот ответ
-              // (as=fetch + crossorigin — тот же режим), второго запроса нет.
-              // Низкий приоритет: ~78 КБ на узком канале не отнимают полосу у бандла.
-              const data = document.createElement('link');
-              data.rel = 'preload';
-              data.setAttribute('as', 'fetch');
-              data.setAttribute('fetchpriority', 'low');
-              data.crossOrigin = 'anonymous';
-              data.href = `${base}globe-data.json?v=${v}`;
-              document.head.appendChild(data);
-              return import(`${base}bb-globe.js?v=${v}`).then((mod) => ({ config, mod }));
-            })
+            .then((c) => (valid(c) ? c : null))
             .catch(() => null);
-          // Строится — когда приложение отрисовалось (первый узел в #root): до того
-          // главный поток — бандлу и React (кадр холста и его передача на экран без
-          // GPU стоят десятки мс), а сеть уже вся сделана. Не DOMContentLoaded и не
-          // createRoot: #root ищем сами, как только парсер до него дойдёт.
+          const hint = stored();
+          // свежий список — в подсказку следующему входу (неверный или 404 — её нет)
+          fresh.then(remember);
+          early.load = (hint ? files(hint) : fresh.then((c) => (c ? files(c) : null))).catch(() => null);
+          // Без GPU строится — когда приложение отрисовалось (первый узел в #root):
+          // до того главный поток — бандлу и React (кадр холста и его передача на
+          // экран без GPU стоят десятки мс), а сеть уже вся сделана. Не
+          // DOMContentLoaded и не createRoot: #root ищем сами, как только парсер до
+          // него дойдёт.
           const rendered = new Promise((go) => {
             const wait = () => {
               const root = document.getElementById('root');
@@ -257,12 +299,19 @@
             };
             wait();
           });
-          // Слой глобуса с параметрами createLayer (CabinetGlobeImpl.tsx). Когда:
-          // страница с глобусом («Вход», «Главная») обычно приходит вскоре после
-          // первой отрисовки — тогда слой строится при ней (claimEarlyLayer зовёт
-          // early.build: всё уже загружено), и его кадр не отнимает главный поток у
-          // её запуска. Не пришла за 250 мс — приложение ждёт сеть, поток свободен:
-          // глобус встаёт на место сам и ждёт её (hold).
+          // Слою нужен <body>: скрипт стоит в <head>, а файлы из кэша приходят раньше,
+          // чем парсер до него дойдёт.
+          const body = new Promise((go) => {
+            const wait = () => (document.body ? go() : setTimeout(wait, 5));
+            wait();
+          });
+          // Слой глобуса с параметрами createLayer (CabinetGlobeImpl.tsx). Когда — см.
+          // в конце: с точками на GPU сразу; без GPU страница с глобусом («Вход»,
+          // «Главная») обычно приходит вскоре после первой отрисовки — тогда слой
+          // строится при ней (claimEarlyLayer зовёт early.build: всё уже загружено),
+          // и его кадр не отнимает главный поток у её запуска. Не пришла за 250 мс —
+          // приложение ждёт сеть, поток свободен: глобус встаёт на место сам и ждёт
+          // её (hold).
           const build = (c, m) => {
             const v = c.v;
             const phone = innerWidth < 1024;
@@ -298,8 +347,11 @@
                   layer.ready = true;
                   // вход кончился, а страница слой не забрала (settleEarlyLayer) — не показывать
                   if (!layer.faded) {
-                    // ожидание входа ещё идёт — сразу, без проявления
-                    if (html.classList.contains('bb-entry-black')) {
+                    // Принял перелёт лендинга, и ожидание входа ещё идёт: глобус
+                    // лендинга только что был на экране — сразу, без проявления.
+                    // Без перелёта (страница была прокручена мимо глобуса) и
+                    // опоздавший проявляются как обычно.
+                    if (arrive && html.classList.contains('bb-entry-black')) {
                       el.classList.add('bb-globe-layer--instant');
                     }
                     el.classList.add('is-ready');
@@ -316,21 +368,29 @@
               el.remove();
             }
           };
-          Promise.all([early.load, rendered])
+          Promise.all([early.load, body])
             .then(([got]) => {
               const c = got?.config;
               const m = got?.mod;
-              const v = c?.v;
-              if (!((typeof v === 'string' && v) || Number.isFinite(v))) return;
-              if (!c.servers || typeof c.servers !== 'object' || Array.isArray(c.servers)) return;
+              if (!valid(c)) return;
               if (typeof m?.BBGlobe !== 'function' || typeof m.cabinetView !== 'function') return;
               early.build = () => {
                 if (!early.layer && !early.dropped && !early.adopted) build(c, m);
               };
               // сам — только пока идёт вход: кончился без страницы — экран без глобуса
-              setTimeout(() => {
+              const self = () => {
                 if (html.classList.contains('bb-entry-black')) early.build();
-              }, 250);
+              };
+              // Точки будут на GPU (модуль проверяет сам; у модуля до gpuDots() —
+              // прежний путь): строим сейчас, приложение ждать незачем.
+              let gpu = false;
+              try {
+                gpu = m.gpuDots?.() === true;
+              } catch {
+                // WebGL не дали — как без GPU
+              }
+              if (gpu) self();
+              else rendered.then(() => setTimeout(self, 250));
             })
             .catch(() => {});
         } catch {
