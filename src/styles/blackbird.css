@@ -183,9 +183,12 @@ h3 {
 }
 
 /* Вход с лендинга (src/components/blackbird/globe/landingEntry.ts). Тёмная
-   тема: пока глобус не нарисован (не дольше 0,6 с), #root прозрачен и не
-   принимает нажатий: на экране фон и глобус, как только что на лендинге.
-   Потом содержимое проявляется за 0,4 с (bb-entry-in). */
+   тема: пока страница не готова (не дольше 5 с от начала документа), #root
+   прозрачен и не принимает нажатий: на экране фон и вращающийся глобус, как
+   только что на лендинге, — он и есть загрузка. Потом содержимое проявляется
+   за 0,4 с (bb-entry-in) с лёгким подъёмом: поднимается колонка содержимого
+   (bb-globe-shade), закреплённая шапка стоит на месте. К концу анимации
+   transform снова none: своего контекста наложения у колонки не остаётся. */
 html.bb-entry #root {
   opacity: 0;
   pointer-events: none;
@@ -195,33 +198,64 @@ html.bb-entry-in #root {
   transition: opacity 0.4s ease-out;
 }
 
+html.bb-entry-in .bb-globe-shade {
+  animation: bb-entry-rise 0.4s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes bb-entry-rise {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Телефон: в кабинете глобус приглушён (0.6), а на лендинге и пока идёт вход
+   он в полную яркость — он один на экране. С появлением содержимого
+   приглушается до обычного за те же 0,4 с. */
+@media (max-width: 1023px) {
+  html.bb-entry .bb-globe-layer.is-ready,
+  html.bb-entry-black .bb-globe-layer.is-ready {
+    opacity: 1;
+  }
+
+  html.bb-entry-in .bb-globe-layer.is-ready {
+    transition: opacity 0.4s ease-out;
+  }
+}
+
 /* Глобус, нарисованный во время ожидания, появляется сразу: он продолжает
    глобус лендинга на том же месте. Опоздавший проявляется как обычно. */
 .bb-globe-layer.bb-globe-layer--instant {
   transition: none;
 }
 
-/* У лендинга глобус начинается под его шапкой (72 px), шапка погасла в чёрный.
-   Слой кабинета — на всё окно: без этой полосы точки над 72 px появились бы
-   резкой полосой в момент смены страницы. Пока идёт вход (bb-entry-black стоит
-   с первой отрисовки: ранний глобус бывает нарисован ещё до бандла), их
+/* У лендинга на ПК глобус начинается под его шапкой (72 px), шапка погасла в
+   чёрный. Слой кабинета — на всё окно: без этой полосы точки над 72 px
+   появились бы резкой полосой в момент смены страницы. Первый кадр глобуса их
    закрывает полоса цвета фона слоя (inherit: модуль ставит его слою сам, это
-   цвет, в который растворяются края глобуса); она гаснет вместе с проявлением
-   содержимого. */
-html.bb-entry-black .bb-globe-layer::after,
-html.bb-entry-in .bb-globe-layer::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 72px;
-  background-color: inherit;
-}
+   цвет, в который растворяются края глобуса), и сразу гаснет за 0,4 с: глобус
+   остаётся на экране как загрузка, и ждать с ней содержимого незачем.
+   Только от 1024 px: на телефоне лендинг отдаёт глобус слоем на всё окно, без
+   шапки над ним. */
+@media (min-width: 1024px) {
+  html.bb-entry-black .bb-globe-layer::after,
+  html.bb-entry-in .bb-globe-layer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 72px;
+    background-color: inherit;
+  }
 
-html.bb-entry-in .bb-globe-layer::after {
-  opacity: 0;
-  transition: opacity 0.4s ease-out;
+  html.bb-entry-black .bb-globe-layer.is-ready::after,
+  html.bb-entry-in .bb-globe-layer::after {
+    opacity: 0;
+    transition: opacity 0.4s ease-out;
+  }
 }
 
 /* Светлая тема: глобус не ждём и не передаём. Лендинг погас в чёрный, не зная

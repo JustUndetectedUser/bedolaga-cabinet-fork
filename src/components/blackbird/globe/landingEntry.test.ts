@@ -11,8 +11,10 @@ const cssSource = readFileSync(join(import.meta.dirname, '../../../styles/blackb
 
 /**
  * Вход с лендинга: метка ?from=landing (&lon=&t= — где был глобус лендинга в
- * момент нажатия). Тёмная тема: #root скрыт (bb-entry), пока глобус не
- * нарисуется, но не дольше 600 мс; потом проявляется за 400 мс (bb-entry-in).
+ * момент нажатия). Тёмная тема: #root скрыт (bb-entry), на экране глобус как
+ * загрузка, пока страница не готова (releaseLandingEntry зовёт она), но не
+ * дольше 5 с от начала документа; глобуса нет на экране через 1,5 с — не ждём.
+ * Потом содержимое проявляется за 400 мс (bb-entry-in).
  * Светлая: чёрная накладка гаснет за 400 мс после первой отрисовки
  * приложения, без ожидания глобуса. Метка убирается из адреса в любом случае.
  */
@@ -52,6 +54,13 @@ afterEach(() => {
 });
 
 const entry = () => import('./landingEntry');
+/** Глобус на экране: слой с первым кадром (класс ставит CabinetGlobe или index.html). */
+const readyLayer = (cls = 'bb-globe-layer is-ready') => {
+  const el = document.createElement('div');
+  el.className = cls;
+  document.body.appendChild(el);
+  return el;
+};
 const go = (url: string, state: unknown = null) => history.replaceState(state, '', url);
 const here = () => location.pathname + location.search + location.hash;
 const html = () => document.documentElement.classList;
@@ -114,11 +123,13 @@ describe('captureLandingEntry: тёмная тема', () => {
     expect(loadGlobeMock).toHaveBeenCalledTimes(1);
   });
 
-  it('ожидание не дольше 600 мс, затем проявление за 400 мс', async () => {
+  it('предел: 5 с от начала документа, затем проявление за 400 мс', async () => {
     go('/?from=landing');
-    const { captureLandingEntry, landingEntryPending } = await entry();
+    readyLayer();
+    const { captureLandingEntry, landingEntryPending, ENTRY_CAP_MS } = await entry();
+    expect(ENTRY_CAP_MS).toBe(5000);
     captureLandingEntry(window);
-    vi.advanceTimersByTime(599);
+    vi.advanceTimersByTime(4999);
     expect(html().contains('bb-entry')).toBe(true);
     vi.advanceTimersByTime(1);
     expect(html().contains('bb-entry')).toBe(false);
@@ -128,17 +139,86 @@ describe('captureLandingEntry: тёмная тема', () => {
     expect(html().contains('bb-entry-in')).toBe(false);
   });
 
-  it('600 мс считаются от now: часть уже прошла — ждём остаток', async () => {
+  it('предел считается от начала документа: вход в 1200 мс — снятие ровно через 3800 мс', async () => {
     go('/?from=landing');
+    readyLayer();
     const { captureLandingEntry } = await entry();
-    captureLandingEntry(window, performance.now() - 450);
-    vi.advanceTimersByTime(149);
+    captureLandingEntry(window, 1200);
+    vi.advanceTimersByTime(3799);
     expect(html().contains('bb-entry')).toBe(true);
     vi.advanceTimersByTime(1);
     expect(html().contains('bb-entry')).toBe(false);
   });
 
-  it('releaseLandingEntry раньше 600 мс снимает сразу; повторный вызов безопасен', async () => {
+  it('глобуса нет на экране через 1,5 с от начала документа: ожидание снято, интерфейс как есть', async () => {
+    for (const cls of [null, 'bb-globe-layer']) {
+      vi.resetModules();
+      document.documentElement.className = 'dark';
+      document.body.innerHTML = '<div id="root"></div>';
+      go('/?from=landing');
+      // слоя нет вовсе; слой есть, но первого кадра ещё не было (без is-ready)
+      if (cls) readyLayer(cls);
+      const { captureLandingEntry, GLOBE_LATE_MS } = await entry();
+      expect(GLOBE_LATE_MS).toBe(1500);
+      captureLandingEntry(window, 1200);
+      vi.advanceTimersByTime(299);
+      expect(html().contains('bb-entry'), String(cls)).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(html().contains('bb-entry'), String(cls)).toBe(false);
+      expect(html().contains('bb-entry-in'), String(cls)).toBe(true);
+    }
+  });
+
+  it('глобус на экране к 1,5 с: ждём дальше (готовую страницу или предел)', async () => {
+    go('/?from=landing');
+    readyLayer();
+    const { captureLandingEntry, landingEntryPending } = await entry();
+    captureLandingEntry(window, 1200);
+    vi.advanceTimersByTime(300);
+    expect(html().contains('bb-entry')).toBe(true);
+    vi.advanceTimersByTime(3000);
+    expect(landingEntryPending()).toBe(true);
+  });
+
+  it('бандл пришёл позже 1,5 с от начала документа, глобуса на экране нет: не ждём вовсе', async () => {
+    go('/?from=landing');
+    const { captureLandingEntry } = await entry();
+    captureLandingEntry(window, 2400);
+    vi.advanceTimersByTime(0);
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+
+  it('«Назад» в кабинет из кэша страниц (pageshow, persisted), пока ожидание не снято: интерфейс сразу', async () => {
+    go('/?from=landing');
+    readyLayer();
+    const { captureLandingEntry, landingEntryPending } = await entry();
+    captureLandingEntry(window);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
+    expect(landingEntryPending()).toBe(true);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    expect(landingEntryPending()).toBe(false);
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+
+  it('releaseLandingEntry: слой глобуса теряет «сразу, без проявления» — после расчёта стилей «до»', async () => {
+    go('/?from=landing');
+    const layer = readyLayer('bb-globe-layer is-ready bb-globe-layer--instant');
+    const { captureLandingEntry, releaseLandingEntry } = await entry();
+    captureLandingEntry(window);
+    // Класс и первый кадр могли встать в этой же задаче: без расчёта стилей с
+    // «сразу» слой проявлялся бы 0,6 с, а на телефоне не было бы перехода к 0.6.
+    const seen: string[] = [];
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+      if (el === layer) seen.push(`${layer.className} | ${document.documentElement.className}`);
+      return real(el, pseudo);
+    });
+    releaseLandingEntry();
+    expect(seen).toEqual(['bb-globe-layer is-ready bb-globe-layer--instant | dark bb-entry']);
+    expect(layer.className).toBe('bb-globe-layer is-ready');
+  });
+
+  it('releaseLandingEntry раньше предела снимает сразу; повторный вызов безопасен', async () => {
     go('/?from=landing');
     const { captureLandingEntry, releaseLandingEntry, landingEntryPending } = await entry();
     captureLandingEntry(window);
@@ -327,12 +407,12 @@ describe('первая отрисовка чёрная (index.html, bb-entry-bla
     expect(black()).toBe(false);
   });
 
-  it('тёмная: снимается и по таймауту 600 мс', async () => {
+  it('тёмная: снимается и без глобуса (1,5 с), и по пределу (5 с)', async () => {
     go('/?from=landing');
     inline();
     const { captureLandingEntry } = await entry();
     captureLandingEntry(window);
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(1500);
     expect(black()).toBe(false);
   });
 
@@ -390,6 +470,8 @@ describe('ранний слой index.html, который никто не вз�
     const { el, destroy, early } = setEarly();
     go('/?from=landing');
     const { captureLandingEntry, EARLY_HOLD_MS } = await entry();
+    // дольше предела входа (5 с): на пределе слой ещё может забрать опоздавшая страница
+    expect(EARLY_HOLD_MS).toBe(7000);
     captureLandingEntry(window);
     vi.advanceTimersByTime(EARLY_HOLD_MS - 1);
     expect(el.isConnected).toBe(true);
@@ -405,7 +487,7 @@ describe('ранний слой index.html, который никто не вз�
     go('/?from=landing');
     const { captureLandingEntry } = await entry();
     captureLandingEntry(window);
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(5000);
     expect(el.classList.contains('is-ready')).toBe(false);
     expect(el.classList.contains('bb-globe-layer--instant')).toBe(false);
     expect(early.layer?.faded).toBe(true);
@@ -450,13 +532,45 @@ describe('blackbird.css: числа входа', () => {
     expect(rule('html.bb-entry-in #root')).toMatch(/transition: opacity 0\.4s/);
   });
 
-  it('полоса шапки лендинга (0..72 px) закрыта и проявляется вместе с содержимым', () => {
-    const band = rule('html.bb-entry-in .bb-globe-layer::after');
-    expect(cssSource).toMatch(
-      /html\.bb-entry-black \.bb-globe-layer::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{[^}]*height: 72px;/,
+  it('полоса шапки лендинга (0..72 px, только от 1024 px) закрыта первым кадром и гаснет за 0,4 с, как только глобус нарисован', () => {
+    const desktop = cssSource.slice(
+      cssSource.indexOf(
+        '@media (min-width: 1024px) {\n  html.bb-entry-black .bb-globe-layer::after',
+      ),
     );
-    expect(band).toMatch(/opacity: 0;/);
-    expect(band).toMatch(/transition: opacity 0\.4s/);
+    expect(desktop).toMatch(
+      /^@media \(min-width: 1024px\) \{\s*html\.bb-entry-black \.bb-globe-layer::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{[^}]*height: 72px;/,
+    );
+    // гаснет не с содержимым (оно может прийти через секунды), а с первым кадром глобуса
+    expect(desktop).toMatch(
+      /html\.bb-entry-black \.bb-globe-layer\.is-ready::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{\s*opacity: 0;\s*transition: opacity 0\.4s ease-out;\s*\}/,
+    );
+    // вне медиа-запроса полосы нет: у телефона лендинг отдаёт глобус слоем на всё окно, без шапки над ним
+    const outside = cssSource.replace(
+      /@media \(min-width: 1024px\) \{\s*html\.bb-entry-black \.bb-globe-layer::after[\s\S]*?\n\}\n/,
+      '',
+    );
+    expect(outside).not.toMatch(/bb-globe-layer::after/);
+  });
+
+  it('содержимое появляется с подъёмом 12 px за 0,4 с (колонка, не закреплённая шапка)', () => {
+    expect(rule('html.bb-entry-in .bb-globe-shade')).toMatch(
+      /animation: bb-entry-rise 0\.4s cubic-bezier\(0\.2, 0, 0, 1\) both;/,
+    );
+    expect(cssSource).toMatch(
+      /@keyframes bb-entry-rise \{\s*from \{\s*transform: translateY\(12px\);\s*\}\s*to \{\s*transform: none;\s*\}\s*\}/,
+    );
+  });
+
+  it('телефон: пока идёт вход, глобус в полную яркость; после — приглушается до 0.6 за 0,4 с', () => {
+    const phone = cssSource.slice(
+      cssSource.lastIndexOf(
+        '@media (max-width: 1023px) {\n  html.bb-entry .bb-globe-layer.is-ready',
+      ),
+    );
+    expect(phone).toMatch(
+      /^@media \(max-width: 1023px\) \{\s*html\.bb-entry \.bb-globe-layer\.is-ready,\s*html\.bb-entry-black \.bb-globe-layer\.is-ready \{\s*opacity: 1;\s*\}\s*html\.bb-entry-in \.bb-globe-layer\.is-ready \{\s*transition: opacity 0\.4s ease-out;\s*\}\s*\}/,
+    );
   });
 
   it('глобус входа — без проявления 0,6 с', () => {

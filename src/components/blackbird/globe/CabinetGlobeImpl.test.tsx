@@ -101,7 +101,10 @@ afterEach(() => {
   document.documentElement.className = '';
 });
 
-type Globe = React.ComponentType<{ onReady?: () => void; keepOnly?: boolean }>;
+type Globe = React.ComponentType<{ onReady?: () => void; keepOnly?: boolean; busy?: boolean }>;
+/** Пределы входа с лендинга (landingEntry.ts): от начала документа, мс. */
+const ENTRY_CAP = 5000;
+const GLOBE_LATE = 1500;
 
 /** Дождаться динамических import() и разобрать цепочку промисов за ними (несколько кругов: import → then → import). */
 async function settle() {
@@ -424,7 +427,8 @@ describe('CabinetGlobe: вход с лендинга (landingEntry)', () => {
 
   async function capture() {
     const { captureLandingEntry } = await import('./landingEntry');
-    expect(captureLandingEntry(window)).toBe('dark');
+    // второй аргумент — сколько прошло от начала документа (performance.now() здесь настоящий)
+    expect(captureLandingEntry(window, 0)).toBe('dark');
   }
 
   it('глобус входа продолжает вращение лендинга: spinFrom из метки', async () => {
@@ -444,8 +448,17 @@ describe('CabinetGlobe: вход с лендинга (landingEntry)', () => {
     await mount((G) => <G onReady={onReady} />);
     const layer = layers()[0];
     expect(html().contains('bb-entry')).toBe(true);
+    // «сразу» стоит в расчёте стилей до снятия ожидания (его делает releaseLandingEntry) и снимается с ним
+    const seen: string[] = [];
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+      if (el === layer) seen.push(layer.className);
+      return real(el, pseudo);
+    });
     act(() => instances[0].options.onReady());
-    expect(layer.classList.contains('bb-globe-layer--instant')).toBe(true);
+    expect(seen[0]).toContain('bb-globe-layer--instant');
+    expect(seen[0]).toContain('is-ready');
+    expect(layer.classList.contains('bb-globe-layer--instant')).toBe(false);
     expect(layer.classList.contains('is-ready')).toBe(true);
     expect(html().contains('bb-entry')).toBe(false);
     expect(html().contains('bb-entry-in')).toBe(true);
@@ -464,26 +477,61 @@ describe('CabinetGlobe: вход с лендинга (landingEntry)', () => {
     expect(layers()).toHaveLength(1);
   });
 
-  it('опоздал (позже 600 мс): #root уже виден, глобус проявляется как обычно', async () => {
+  it('опоздал (позже 1,5 с от начала документа): #root уже виден, глобус проявляется как обычно', async () => {
     await capture();
     await mount();
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(GLOBE_LATE);
     expect(html().contains('bb-entry')).toBe(false);
     act(() => instances[0].options.onReady());
     expect(layers()[0].classList.contains('bb-globe-layer--instant')).toBe(false);
     expect(layers()[0].classList.contains('is-ready')).toBe(true);
   });
 
-  it('скелетон «Главной» во время входа создаёт глобус сам: ожидание не зависит от API', async () => {
+  it('скелетон «Главной» во время входа глобус не строит и ожидание не снимает; её содержимое — строит и снимает', async () => {
     await capture();
-    await mount((G) => <G keepOnly />);
+    const view = await mount((G) => <G keepOnly />);
+    expect(ctor).not.toHaveBeenCalled();
+    expect(layers()).toHaveLength(0);
+    expect(html().contains('bb-entry')).toBe(true);
+    const G = view.CabinetGlobe as Globe;
+    view.rerender(<G />);
+    await act(settle);
     expect(ctor).toHaveBeenCalledTimes(1);
-    expect(layers()).toHaveLength(1);
+    expect(html().contains('bb-entry')).toBe(true);
+    act(() => instances[0].options.onReady());
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+
+  it('полная «Главная» ещё грузит данные (busy): глобус строится, но его кадр ожидание не снимает; данные пришли — снято', async () => {
+    await capture();
+    const onReady = vi.fn();
+    const view = await mount((G) => <G busy onReady={onReady} />);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    act(() => instances[0].options.onReady());
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(layers()[0].classList.contains('is-ready')).toBe(true);
+    expect(html().contains('bb-entry')).toBe(true);
+    const G = view.CabinetGlobe as Globe;
+    view.rerender(<G busy={false} onReady={onReady} />);
+    expect(html().contains('bb-entry')).toBe(false);
+    expect(html().contains('bb-entry-in')).toBe(true);
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(ctor).toHaveBeenCalledTimes(1);
+  });
+
+  it('busy без входа с лендинга ничего не меняет', async () => {
+    const view = await mount((G) => <G busy />);
+    act(() => instances[0].options.onReady());
+    expect(layers()[0].classList.contains('is-ready')).toBe(true);
+    const G = view.CabinetGlobe as Globe;
+    view.rerender(<G busy={false} />);
+    expect(ctor).toHaveBeenCalledTimes(1);
+    expect(html().contains('bb-entry-in')).toBe(false);
   });
 
   it('скелетон после входа (ожидание снято) — снова только держит', async () => {
     await capture();
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(GLOBE_LATE);
     await mount((G) => <G keepOnly />);
     expect(ctor).not.toHaveBeenCalled();
     expect(layers()).toHaveLength(0);
@@ -567,7 +615,8 @@ describe('ранний глобус: index.html строит слой до React
 
   async function capture() {
     const { captureLandingEntry } = await import('./landingEntry');
-    return captureLandingEntry(window);
+    // второй аргумент — сколько прошло от начала документа (performance.now() здесь настоящий)
+    return captureLandingEntry(window, 0);
   }
 
   beforeEach(() => {
@@ -615,7 +664,7 @@ describe('ранний глобус: index.html строит слой до React
     inline();
     await act(flush);
     const { captureLandingEntry, releaseLandingEntry } = await import('./landingEntry');
-    captureLandingEntry(window);
+    captureLandingEntry(window, 0);
     releaseLandingEntry();
     vi.advanceTimersByTime(DRAW_DELAY);
     expect(ctor).not.toHaveBeenCalled();
@@ -783,7 +832,7 @@ describe('ранний глобус: index.html строит слой до React
       act(() => instances[0].options.onReady());
       await capture();
       const layer = layers()[0];
-      vi.advanceTimersByTime(600);
+      vi.advanceTimersByTime(ENTRY_CAP);
       expect(layer.classList.contains('is-ready')).toBe(false);
       // гаснет переходом прозрачности (0,6 с) — за экран только после него
       expect(layer.classList.contains('bb-globe-layer--paused')).toBe(false);
@@ -800,7 +849,7 @@ describe('ранний глобус: index.html строит слой до React
       await inlineBuilt();
       act(() => instances[0].options.onReady());
       await capture();
-      vi.advanceTimersByTime(600);
+      vi.advanceTimersByTime(ENTRY_CAP);
       await mount();
       vi.advanceTimersByTime(700);
       expect(layers()[0].classList.contains('bb-globe-layer--paused')).toBe(false);
@@ -810,7 +859,7 @@ describe('ранний глобус: index.html строит слой до React
       await inlineBuilt();
       act(() => instances[0].options.onReady());
       await capture();
-      vi.advanceTimersByTime(600 + 700);
+      vi.advanceTimersByTime(ENTRY_CAP + 700);
       expect(layers()[0].classList.contains('bb-globe-layer--paused')).toBe(false);
     });
   });
@@ -906,12 +955,12 @@ describe('ранний глобус: index.html строит слой до React
     expect(layer.classList.contains('is-ready')).toBe(true);
   });
 
-  it('конец входа (600 мс), страница не забрала слой: он гаснет и ждёт; забрала позже — виден снова', async () => {
+  it('конец входа (предел 5 с), страница не забрала слой: он гаснет и ждёт; забрала позже — виден снова', async () => {
     await inlineBuilt();
     act(() => instances[0].options.onReady());
     await capture();
     const layer = layers()[0];
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(ENTRY_CAP);
     expect(html().contains('bb-entry')).toBe(false);
     // не скачком: убираются классы, остаётся переход прозрачности слоя (0,6 с)
     expect(layer.classList.contains('is-ready')).toBe(false);
@@ -928,7 +977,8 @@ describe('ранний глобус: index.html строит слой до React
   it('конец входа до первого кадра, страницы нет: кадр не показывает слой', async () => {
     await inlineBuilt();
     await capture();
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(GLOBE_LATE);
+    expect(html().contains('bb-entry')).toBe(false);
     act(() => instances[0].options.onReady());
     expect(layers()[0].classList.contains('is-ready')).toBe(false);
   });
@@ -942,7 +992,9 @@ describe('ранний глобус: index.html строит слой до React
     expect(html().contains('bb-entry')).toBe(true);
     act(() => instances[0].options.onReady());
     expect(onReady).toHaveBeenCalledTimes(1);
-    expect(layers()[0].classList.contains('bb-globe-layer--instant')).toBe(true);
+    expect(layers()[0].classList.contains('is-ready')).toBe(true);
+    // ожидание снято этим же кадром: «сразу» больше не стоит (переходы после входа — обычные)
+    expect(layers()[0].classList.contains('bb-globe-layer--instant')).toBe(false);
     expect(document.body.classList.contains('bb-globe-on')).toBe(true);
     expect(html().contains('bb-entry')).toBe(false);
     expect(ctor).toHaveBeenCalledTimes(1);
@@ -996,11 +1048,39 @@ describe('ранний глобус: index.html строит слой до React
     expect(early()?.adopted).toBe(true);
   });
 
+  it('скелетон «Главной» во время входа держит ранний слой, но ожидание не снимает; её содержимое — снимает', async () => {
+    await inlineBuilt();
+    act(() => instances[0].options.onReady());
+    await capture();
+    const view = await mount((G) => <G keepOnly />);
+    expect(layers()).toHaveLength(1);
+    expect(early()?.adopted).toBe(true);
+    expect(html().contains('bb-entry')).toBe(true);
+    // скелетон забрал слой: глобус не стоит (resume), он и есть загрузка
+    expect(instances[0].resume).toHaveBeenCalled();
+    const G = view.CabinetGlobe as Globe;
+    view.rerender(<G />);
+    expect(html().contains('bb-entry')).toBe(false);
+    expect(html().contains('bb-entry-in')).toBe(true);
+    expect(layers()).toHaveLength(1);
+    expect(ctor).toHaveBeenCalledTimes(1);
+  });
+
+  it('предел входа при скелетоне: слой забран — остаётся на экране и вращается', async () => {
+    await inlineBuilt();
+    act(() => instances[0].options.onReady());
+    await capture();
+    await mount((G) => <G keepOnly />);
+    vi.advanceTimersByTime(ENTRY_CAP);
+    expect(html().contains('bb-entry')).toBe(false);
+    expect(layers()[0].classList.contains('is-ready')).toBe(true);
+  });
+
   it('скелетон «Главной» после входа (keepOnly) держит ранний слой', async () => {
     await inlineBuilt();
     act(() => instances[0].options.onReady());
     await capture();
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(ENTRY_CAP);
     await mount((G) => <G keepOnly />);
     expect(layers()).toHaveLength(1);
     expect(early()?.adopted).toBe(true);

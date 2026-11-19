@@ -10,10 +10,18 @@ import { dropEarlyLayer, settleEarlyLayer } from './earlyGlobe';
  * показал последним (fly читает инлайн-скрипт index.html, опция arrive модуля).
  *
  * - Тёмная тема: #root прозрачен (класс bb-entry на <html>), видны только фон и
- *   глобус: он появляется сразу на своём месте и вращается дальше с долготы
- *   лендинга (spinFrom). Ожидание снимает первый кадр глобуса
- *   (releaseLandingEntry из CabinetGlobe), сбой глобуса или ENTRY_WAIT_MS —
- *   что раньше; содержимое проявляется за ENTRY_FADE_MS (bb-entry-in).
+ *   глобус: он появляется сразу на своём месте, вращается дальше с долготы
+ *   лендинга (spinFrom) и служит загрузкой — ни чёрного экрана, ни загрузчика
+ *   приложения. Ожидание снимает первое из:
+ *   · страница готова: экран входа смонтирован, «Главная» вышла из загрузки
+ *     данных (CabinetGlobe без keepOnly и без busy, после первого кадра глобуса);
+ *   · ждать нечего: экран блокировки или страница без глобуса (EntryGate);
+ *   · глобуса не будет (сбой загрузки, конструктора, данных);
+ *   · глобуса нет на экране через GLOBE_LATE_MS от начала документа: интерфейс
+ *     как есть, со своим загрузчиком; глобус проявится позже обычным образом;
+ *   · прошло ENTRY_CAP_MS от начала документа;
+ *   · страницу вернули из кэша страниц («Назад»).
+ *   Содержимое проявляется за ENTRY_FADE_MS с подъёмом (bb-entry-in).
  * - Светлая тема: ожидания и передачи глобуса нет. Лендинг не знает темы
  *   кабинета и гаснет так же, поэтому чёрная накладка продолжает его чёрный и
  *   гаснет за ENTRY_FADE_MS после первой отрисовки приложения.
@@ -23,9 +31,7 @@ import { dropEarlyLayer, settleEarlyLayer } from './earlyGlobe';
  * (data-hint="landing-entry", класс bb-entry-black): тёмная тема держит его,
  * пока #root скрыт, светлая снимает, как только накладка на месте. В тёмной
  * теме тот же скрипт сразу грузит глобус и строит его слой после первой
- * отрисовки приложения (earlyGlobe.ts): CabinetGlobe его забирает, и первый
- * кадр, когда страница с глобусом уже на месте, снимает ожидание — до этого
- * #root пуст или показывает загрузчик.
+ * отрисовки приложения (earlyGlobe.ts): CabinetGlobe его забирает.
  *
  * Метку (from, lon, t, fly) убираем из адреса всегда: она одноразовая, а адрес
  * могут сохранить или переслать. Остальные параметры и hash не трогаем.
@@ -42,8 +48,18 @@ export interface SpinFrom {
   at: number;
 }
 
-/** Дольше глобус не ждём: решение владельца (спецификация, 18.11). */
-export const ENTRY_WAIT_MS = 600;
+/**
+ * Предел ожидания: столько от начала документа кабинета (performance.now())
+ * глобус заменяет загрузку; не успела страница — показывается как есть.
+ * Решение владельца (спецификация, 18.11).
+ */
+export const ENTRY_CAP_MS = 5000;
+/**
+ * Глобуса нет на экране к этому моменту от начала документа (его файлы ещё
+ * качаются: первый визит, медленная сеть) — не ждём: без него ожидание было бы
+ * пустым экраном.
+ */
+export const GLOBE_LATE_MS = 1500;
 /** Проявление содержимого (тёмная тема) и угасание накладки (светлая). */
 export const ENTRY_FADE_MS = 400;
 /** t из метки дальше от наших часов — ссылку открыли не сразу (или часы врут): вращение от своих часов. */
@@ -51,10 +67,10 @@ const SPIN_FROM_MAX_SKEW_MS = 10 * 60 * 1000;
 /**
  * Ранний слой (earlyGlobe.ts), который так и не забрала страница с глобусом
  * (вход привёл на экран без глобуса: сбой бэкенда, блокировка), убирается.
- * С запасом на первую отрисовку React (словари — до 5 с): на обычном входе его
- * забирают «Вход» или «Главная» намного раньше.
+ * Дольше предела входа и первой отрисовки React (словари — до 5 с): на пределе
+ * слой гаснет, но опоздавшая страница ещё может его забрать.
  */
-export const EARLY_HOLD_MS = 5000;
+export const EARLY_HOLD_MS = 7000;
 /**
  * Светлая тема: приложение так и не отрисовалось — накладка всё равно гаснет.
  * Больше, чем main.tsx ждёт перед первой отрисовкой (словари — до 5 с,
@@ -67,7 +83,8 @@ const MARK_PART = /^(from|lon|t|fly)(=|$)/;
 /** Класс инлайн-скрипта index.html: фон страницы чёрный, пока не начался вход. */
 const BLACK = 'bb-entry-black';
 
-let wait: { html: HTMLElement; timer: ReturnType<typeof setTimeout> } | null = null;
+type Timer = ReturnType<typeof setTimeout>;
+let wait: { html: HTMLElement; cap: Timer; late: Timer; stop: () => void } | null = null;
 let spinFrom: SpinFrom | null = null;
 
 /** Число из параметра адреса: непустая строка и конечное число; иначе null. */
@@ -120,9 +137,10 @@ function showVeil(doc: Document): void {
 }
 
 /**
- * Прочитать метку входа с лендинга при старте. now — момент, от которого
- * считаются ENTRY_WAIT_MS (по performance.now()). Возвращает тему входа или
- * null (метки нет, «уменьшить движение»). Исключений наружу не бросает.
+ * Прочитать метку входа с лендинга при старте. now — сколько прошло от начала
+ * документа (performance.now()): от него считаются ENTRY_CAP_MS и
+ * GLOBE_LATE_MS. Возвращает тему входа или null (метки нет, «уменьшить
+ * движение»). Исключений наружу не бросает.
  */
 export function captureLandingEntry(win: Window, now = performance.now()): LandingEntry | null {
   const entry = capture(win, now);
@@ -158,8 +176,23 @@ function capture(win: Window, now: number): LandingEntry | null {
         : null;
     if (wait) return 'dark';
     html.classList.add('bb-entry');
-    const left = Math.max(0, ENTRY_WAIT_MS - (performance.now() - now));
-    wait = { html, timer: setTimeout(releaseLandingEntry, left) };
+    // «Назад» из кэша страниц, пока ожидание не снято: страницу показывают как
+    // есть, без входа (её таймеры стояли, пока она лежала в кэше)
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) releaseLandingEntry();
+    };
+    win.addEventListener('pageshow', onShow);
+    wait = {
+      html,
+      cap: setTimeout(releaseLandingEntry, Math.max(0, ENTRY_CAP_MS - now)),
+      late: setTimeout(
+        () => {
+          if (!doc.querySelector('.bb-globe-layer.is-ready')) releaseLandingEntry();
+        },
+        Math.max(0, GLOBE_LATE_MS - now),
+      ),
+      stop: () => win.removeEventListener('pageshow', onShow),
+    };
     setTimeout(dropEarlyLayer, EARLY_HOLD_MS);
     // Как можно раньше, пока React готовит первую отрисовку (обычно глобус уже
     // грузит инлайн-скрипт index.html — тогда без второго запроса). Глобуса не
@@ -181,9 +214,19 @@ function capture(win: Window, now: number): LandingEntry | null {
 /** Снять ожидание (тёмная тема): содержимое проявляется. Повторный вызов ничего не делает. */
 export function releaseLandingEntry(): void {
   if (!wait) return;
-  const { html, timer } = wait;
+  const { html, cap, late, stop } = wait;
   wait = null;
-  clearTimeout(timer);
+  clearTimeout(cap);
+  clearTimeout(late);
+  stop();
+  // Слой глобуса, появившийся «сразу» (bb-globe-layer--instant: без переходов),
+  // дальше живёт с обычными: на телефоне он приглушается до 0.6 вместе с
+  // проявлением содержимого. Сначала расчёт стилей «до»: класс и первый кадр
+  // могли встать в этой же задаче, и без него слой проявлялся бы 0,6 с.
+  for (const layer of html.ownerDocument.querySelectorAll('.bb-globe-layer--instant')) {
+    void getComputedStyle(layer).opacity;
+    layer.classList.remove('bb-globe-layer--instant');
+  }
   // bb-entry-in несёт переход и должен стоять в том же расчёте стилей, в котором
   // #root перестаёт быть прозрачным.
   html.classList.add('bb-entry-in');

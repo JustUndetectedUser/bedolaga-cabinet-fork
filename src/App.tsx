@@ -25,6 +25,8 @@ function lazyWithRetry<T extends ComponentType<unknown>>(factory: () => Promise<
   );
 }
 import { useBlockingStore } from './store/blocking';
+// BlackBird: вход с лендинга (глобус как загрузка)
+import { EntryGate } from './components/blackbird/globe/EntryGate';
 import Layout from './components/layout/Layout';
 import PageLoader from './components/common/PageLoader';
 import {
@@ -294,6 +296,8 @@ function App() {
       {/* Живёт над <Routes>: анимация фона не перезапускается при навигации */}
       <BackgroundHost />
       <BlockingOverlay />
+      {/* BlackBird: вход с лендинга — экрану блокировки и страницам без глобуса ожидание не нужно */}
+      <EntryGate />
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />

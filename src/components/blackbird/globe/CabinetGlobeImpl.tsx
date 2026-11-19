@@ -271,25 +271,29 @@ function take(layer: Layer, onReady: () => void): () => void {
  * глобуса (сразу, если он уже нарисован).
  *
  * keepOnly — для скелетона «Главной»: только удерживает слой, который уже
- * есть (пришли со входа — глобус стоит, пока грузятся данные), и ничего не
- * грузит и не создаёт (холодная загрузка — глобус после содержимого, как без
- * keepOnly на самом содержимом). Кроме входа с лендинга (landingEntry.ts): там
- * #root скрыт, пока глобус не нарисован, и скелетон строит его сам, не дожидаясь
- * ответа API.
+ * есть (пришли со входа — глобус стоит, пока грузятся данные; вход с лендинга —
+ * слой построил инлайн-скрипт index.html), и ничего не грузит и не создаёт
+ * (холодная загрузка — глобус после содержимого, как без keepOnly на самом
+ * содержимом).
  *
- * Первый кадр глобуса снимает ожидание входа с лендинга (releaseLandingEntry).
- * Слой, который на входе с лендинга построил до страницы инлайн-скрипт index.html
- * (earlyGlobe.ts), забирается как есть: тот же холст, без второй загрузки.
+ * Вход с лендинга (landingEntry.ts): #root скрыт, на экране глобус как
+ * загрузка, пока страница не готова. Готова — это страница без keepOnly и без
+ * busy, у которой глобус нарисован: тогда ожидание снимается
+ * (releaseLandingEntry) и содержимое проявляется уже с данными. Скелетон
+ * (keepOnly) и страница, которая ещё грузит данные (busy: полная «Главная»,
+ * у неё скелетон внутри), слой держат, но ожидание не снимают. Слой, который
+ * построил инлайн-скрипт index.html (earlyGlobe.ts), забирается как есть: тот
+ * же холст, без второй загрузки.
  */
 export function CabinetGlobe({
   onReady,
-  keepOnly: keepOnlyProp = false,
+  keepOnly = false,
+  busy = false,
 }: {
   onReady?: () => void;
   keepOnly?: boolean;
+  busy?: boolean;
 }): null {
-  const [entry] = useState(landingEntryPending);
-  const keepOnly = keepOnlyProp && !entry;
   const [globe, setGlobe] = useState<LoadedGlobe | null>(() => known);
   const onReadyRef = useRef(onReady);
   useEffect(() => {
@@ -298,6 +302,8 @@ export function CabinetGlobe({
   // Один раз на страницу: слой берётся заново, когда приходит loadGlobe (ранний
   // слой входа с лендинга сначала просто удерживается) или в StrictMode.
   const readyFired = useRef(false);
+  // Глобус этой страницы нарисован (для входа с лендинга: ждём ещё готовность страницы).
+  const [drawn, setDrawn] = useState(false);
 
   useEffect(() => {
     if (globe || keepOnly) return;
@@ -314,7 +320,7 @@ export function CabinetGlobe({
 
   useEffect(() => {
     const ready = () => {
-      releaseLandingEntry();
+      setDrawn(true);
       if (readyFired.current) return;
       readyFired.current = true;
       onReadyRef.current?.();
@@ -322,6 +328,13 @@ export function CabinetGlobe({
     const release = keepOnly || !globe ? keep(ready) : acquire(globe, ready);
     return release ?? undefined;
   }, [globe, keepOnly]);
+
+  // Вход с лендинга: страница готова (не скелетон, данные есть) и глобус
+  // нарисован — содержимое проявляется.
+  const done = drawn && !keepOnly && !busy;
+  useEffect(() => {
+    if (done) releaseLandingEntry();
+  }, [done]);
 
   return null;
 }

@@ -297,8 +297,8 @@ export default function Dashboard() {
 
   return (
     <div className="bb-globe-shade space-y-6">
-      {/* BlackBird: глобус фоном и тень под колонкой (bb-globe-shade) */}
-      <CabinetGlobe />
+      {/* BlackBird: глобус фоном и тень под колонкой (bb-globe-shade); busy: пока вместо карточки подписки скелетон, вход с лендинга ждёт */}
+      <CabinetGlobe busy={!isMultiTariff && subLoading} />
       {/* BlackBird: карточки уникальных тарифов промогрупп */}
       <PromoOfferCard />
       {/* Header */}
