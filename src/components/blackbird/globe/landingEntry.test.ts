@@ -46,6 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   document.documentElement.className = '';
@@ -145,6 +146,40 @@ describe('captureLandingEntry: тёмная тема', () => {
     const { captureLandingEntry } = await entry();
     captureLandingEntry(window, 1200);
     vi.advanceTimersByTime(3799);
+    expect(html().contains('bb-entry')).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+
+  it('начало документа — первый байт ответа кабинета: время до него (редиректы, сервер) в счёт не идёт', async () => {
+    go('/?from=landing');
+    readyLayer();
+    // performance.now() считает от начала навигации (нажатие на лендинге); ответ кабинета начался на 400-й мс
+    vi.spyOn(performance, 'now').mockReturnValue(1600);
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([
+      { responseStart: 400 },
+    ] as unknown as PerformanceEntryList);
+    const { captureLandingEntry } = await entry();
+    captureLandingEntry(window);
+    vi.advanceTimersByTime(3799);
+    expect(html().contains('bb-entry')).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(html().contains('bb-entry')).toBe(false);
+  });
+
+  it.each([
+    ['записи о навигации нет', []],
+    ['ответ не отмечен', [{ responseStart: 0 }]],
+  ])('начало документа неизвестно (%s): счёт от начала навигации', async (_, entries) => {
+    go('/?from=landing');
+    readyLayer();
+    vi.spyOn(performance, 'now').mockReturnValue(1600);
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue(
+      entries as unknown as PerformanceEntryList,
+    );
+    const { captureLandingEntry } = await entry();
+    captureLandingEntry(window);
+    vi.advanceTimersByTime(3399);
     expect(html().contains('bb-entry')).toBe(true);
     vi.advanceTimersByTime(1);
     expect(html().contains('bb-entry')).toBe(false);

@@ -49,8 +49,9 @@ export interface SpinFrom {
 }
 
 /**
- * Предел ожидания: столько от начала документа кабинета (performance.now())
- * глобус заменяет загрузку; не успела страница — показывается как есть.
+ * Предел ожидания: столько от начала документа кабинета (первый байт ответа,
+ * sinceDocument) глобус заменяет загрузку; не успела страница — показывается
+ * как есть.
  * Решение владельца (спецификация, 18.11).
  */
 export const ENTRY_CAP_MS = 5000;
@@ -137,12 +138,25 @@ function showVeil(doc: Document): void {
 }
 
 /**
- * Прочитать метку входа с лендинга при старте. now — сколько прошло от начала
- * документа (performance.now()): от него считаются ENTRY_CAP_MS и
- * GLOBE_LATE_MS. Возвращает тему входа или null (метки нет, «уменьшить
- * движение»). Исключений наружу не бросает.
+ * Сколько прошло от начала документа кабинета, мс. Начало — первый байт его
+ * ответа: до него на экране ещё лендинг (браузер держит его кадр), а
+ * performance.now() идёт от начала навигации — от нажатия на лендинге, вместе
+ * с редиректами и ответом сервера. Первый байт неизвестен — от начала навигации.
  */
-export function captureLandingEntry(win: Window, now = performance.now()): LandingEntry | null {
+function sinceDocument(): number {
+  const nav = performance.getEntriesByType?.('navigation')[0] as
+    | PerformanceNavigationTiming
+    | undefined;
+  return performance.now() - (nav && nav.responseStart > 0 ? nav.responseStart : 0);
+}
+
+/**
+ * Прочитать метку входа с лендинга при старте. now — сколько прошло от начала
+ * документа (sinceDocument): от него считаются ENTRY_CAP_MS и GLOBE_LATE_MS.
+ * Возвращает тему входа или null (метки нет, «уменьшить движение»). Исключений
+ * наружу не бросает.
+ */
+export function captureLandingEntry(win: Window, now = sinceDocument()): LandingEntry | null {
   const entry = capture(win, now);
   // Чёрный фон index.html: тёмная тема снимает его вместе с ожиданием, в
   // остальных случаях он больше не нужен (у светлой уже стоит накладка).
