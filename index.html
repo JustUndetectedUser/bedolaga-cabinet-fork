@@ -86,8 +86,27 @@
             stored = localStorage.getItem('cabinet-theme');
           } catch (e) {}
 
+          // BlackBird: вход с лендинга (?from=landing&theme=…) открывает кабинет в
+          // теме лендинга и запоминает её — дальше useTheme читает её как
+          // сохранённый выбор. Решение владельца (19.11): светлый лендинг —
+          // светлый кабинет, тёмный — тёмный, кэш включённых тем тут не
+          // спрашивается. Без theme или с неверной — тёмная: старый лендинг был
+          // только тёмным. Метку убирает landingEntry.ts.
+          var handed = null;
+          try {
+            var q = new URLSearchParams(location.search);
+            if (q.get('from') === 'landing') handed = q.get('theme') === 'light' ? 'light' : 'dark';
+          } catch (e) {}
+          if (handed) {
+            try {
+              localStorage.setItem('cabinet-theme', handed);
+            } catch (e) {}
+          }
+
           var theme;
-          if (stored === 'light' || stored === 'dark') {
+          if (handed) {
+            theme = handed;
+          } else if (stored === 'light' || stored === 'dark') {
             theme = enabled[stored] ? stored : enabled.dark ? 'dark' : 'light';
           } else if (window.matchMedia('(prefers-color-scheme: light)').matches && enabled.light) {
             theme = 'light';
