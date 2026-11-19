@@ -99,6 +99,28 @@ describe('EntryGate', () => {
     expect(landingEntryPending()).toBe(false);
   });
 
+  // Страница упала при отрисовке: экран ошибки (ErrorBoundary) показывается сразу, а не за глобусом до предела
+  it.each(['page', 'app'] as const)(
+    'ошибка отрисовки (ErrorBoundary level=%s): ожидание снято сразу',
+    async (level) => {
+      const { landingEntryPending } = await gate('/');
+      expect(landingEntryPending()).toBe(true);
+      const { ErrorBoundary } = await import('../../ErrorBoundary');
+      function Broken(): null {
+        throw new Error('render failed');
+      }
+      const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(
+        <ErrorBoundary level={level}>
+          <Broken />
+        </ErrorBoundary>,
+      );
+      quiet.mockRestore();
+      expect(landingEntryPending()).toBe(false);
+      expect(html().contains('bb-entry')).toBe(false);
+    },
+  );
+
   it('входа с лендинга нет: ничего не делает', async () => {
     history.replaceState(null, '', '/subscriptions');
     const { landingEntryPending, useBlockingStore } = await gate('/subscriptions', false);

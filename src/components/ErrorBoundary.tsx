@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { safeSession } from '../utils/safeStorage';
+// BlackBird: вход с лендинга (глобус как загрузка)
+import { releaseLandingEntry } from './blackbird/globe/landingEntry';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -36,6 +38,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[ErrorBoundary]', error, errorInfo);
+    // BlackBird: вход с лендинга — экран ошибки сразу, а не за глобусом до предела ожидания
+    releaseLandingEntry();
 
     // Auto-reload on chunk load failures (stale deploy)
     if (isChunkLoadError(error)) {
