@@ -490,13 +490,13 @@ describe('CabinetGlobe quiet: фон рабочих страниц', () => {
     expect(body().contains('bb-globe-quiet')).toBe(false);
   });
 
-  it('blackbird.css: приглушённый слой — 0.4 на ПК и 0.3 на телефоне', () => {
+  it('blackbird.css: приглушённый слой — 0.5 на ПК и 0.4 на телефоне (владелец 20.11: было тускловато)', () => {
     const css = readFileSync(join(import.meta.dirname, '../../../styles/blackbird.css'), 'utf-8');
     expect(css).toMatch(
-      /body\.bb-globe-quiet \.bb-globe-layer\.is-ready\s*\{\s*opacity: 0\.4;\s*\}/,
+      /body\.bb-globe-quiet \.bb-globe-layer\.is-ready\s*\{\s*opacity: 0\.5;\s*\}/,
     );
     expect(css).toMatch(
-      /@media \(max-width: 1023px\)\s*\{\s*body\.bb-globe-quiet \.bb-globe-layer\.is-ready\s*\{\s*opacity: 0\.3;\s*\}\s*\}/,
+      /@media \(max-width: 1023px\)\s*\{\s*body\.bb-globe-quiet \.bb-globe-layer\.is-ready\s*\{\s*opacity: 0\.4;\s*\}\s*\}/,
     );
   });
 
