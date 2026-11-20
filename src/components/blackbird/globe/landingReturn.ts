@@ -9,7 +9,8 @@ import type { BBGlobeInstance } from './bbGlobe';
  * вращается, а переход на лендинг начинается сразу, с меткой:
  * &from=cabinet&lon=<долгота вида, −180…180, 2 знака>&t=<Date.now() клика>
  * &pose=<x>,<y>,<R>,<lat> (центр и радиус глобуса в px окна, 1 знак; широта
- * вида, 2 знака). Лендинг (assets/return.js и init.js роли landing) открывается
+ * вида, 2 знака), и &still=1, если глобус стоял (его остановила проверка
+ * устройства). Лендинг (assets/return.js и init.js роли landing) открывается
  * с глобусом на том же месте, тот садится на место лендинга, потом появляется
  * страница.
  *
@@ -68,7 +69,9 @@ export function returnMark(now: number): string {
   const y = box.top + g.cy;
   const lon = (((v.lon % 360) + 540) % 360) - 180;
   if (![x, y, v.R, v.lat, lon, now].every(Number.isFinite) || !(v.R > 0)) return '';
-  return `&from=cabinet&lon=${fixed(lon, 2)}&t=${Math.round(now)}&pose=${[x, y, v.R].map((n) => fixed(n, 1)).join(',')},${fixed(v.lat, 2)}`;
+  // проверка устройства остановила вращение: лендинг его тоже не крутит (return.js, still)
+  const still = g.still ? '&still=1' : '';
+  return `&from=cabinet&lon=${fixed(lon, 2)}&t=${Math.round(now)}&pose=${[x, y, v.R].map((n) => fixed(n, 1)).join(',')},${fixed(v.lat, 2)}${still}`;
 }
 
 function reducedMotion(win: Window): boolean {

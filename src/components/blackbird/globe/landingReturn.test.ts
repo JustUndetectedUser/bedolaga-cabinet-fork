@@ -83,6 +83,12 @@ describe('returnMark', () => {
     );
   });
 
+  it('the globe stood still (its device check stopped the spin): &still=1, the landing does not turn it either', async () => {
+    const { setReturnLayer, returnMark } = await mod();
+    setReturnLayer(layerAt({ left: 0, top: 0 }, { ...AT_HOME, still: true } as never));
+    expect(returnMark(NOW)).toBe(`${MARK}&still=1`);
+  });
+
   it('empty without a layer, not shown (quiet, not ready, paused), without view, with NaN', async () => {
     const { setReturnLayer, returnMark } = await mod();
     expect(returnMark(NOW)).toBe('');
