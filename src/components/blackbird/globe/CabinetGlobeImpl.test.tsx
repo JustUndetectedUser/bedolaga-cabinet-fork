@@ -1329,6 +1329,206 @@ describe('ранний глобус: index.html строит слой до React
     });
   });
 
+  // Упрощённый глобус (владелец 20.11, Firefox): между двумя сайтами Firefox не держит лендинг на экране до первой
+  // отрисовки кабинета — показывает пустую вкладку, потом фон кабинета без глобуса, пока его не построили. Без пути с
+  // blocking (Firefox; Chrome без подсказки) скрипт index.html до первой отрисовки рисует точки суши (bb-globe-dots в
+  // localStorage кабинета: их кладёт он же, через 3 с после загрузки) там, где глобус лендинга был в момент обрыва
+  // (перелёт к месту глобуса кабинета, вращение до того); холст уходит с первым кадром глобуса или с концом входа.
+  describe('упрощённый глобус до первой отрисовки (Firefox)', () => {
+    const FLY = 'fly=1181.0,567.4,840.0,49.00,600';
+    const DOTS_KEY = 'bb-globe-dots';
+    // сейчас 400-я мс навигации, ответ начал приходить на 180-й: лендинг перестал рисовать за 220 мс до NOW
+    const CUT = NOW - 220;
+    function navigated() {
+      vi.spyOn(performance, 'now').mockReturnValue(400);
+      vi.spyOn(performance, 'getEntriesByType').mockReturnValue([
+        { responseStart: 180 },
+      ] as unknown as PerformanceEntryList);
+    }
+    type Fill = { style: string; discs: number[][] };
+    let ops: { fills: Fill[]; strokes: Fill[]; transform: number[] | null };
+    const quick = () => document.querySelector<HTMLCanvasElement>('canvas.bb-globe-quick');
+    /** Точка на 3600 долготах (0,1°): ближайшая к долготе вида на момент обрыва, на широте вида. */
+    function store(rows: unknown) {
+      localStorage.setItem(DOTS_KEY, JSON.stringify({ v: 'abc', rows }));
+    }
+    function enter(mark = `/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`) {
+      navigated();
+      emptyRoot();
+      history.replaceState(null, '', mark);
+      inline();
+    }
+    // easeOut модуля и место глобуса кабинета (cabinetView модуля, ПК)
+    const ease = (e0: number) => 1 - (1 - Math.min(1, Math.max(0, e0))) ** 4;
+
+    beforeEach(() => {
+      ops = { fills: [], strokes: [], transform: null };
+      let discs: number[][] = [];
+      const g = {
+        fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 0,
+        setTransform: (...a: number[]) => {
+          ops.transform = a;
+        },
+        beginPath: () => {
+          discs = [];
+        },
+        moveTo: () => {},
+        arc: (x: number, y: number, r: number) => {
+          discs.push([x, y, r]);
+        },
+        fill() {
+          ops.fills.push({ style: this.fillStyle, discs });
+        },
+        stroke() {
+          ops.strokes.push({ style: this.strokeStyle, discs });
+        },
+      };
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+        ((k: string) => (k === '2d' ? g : null)) as unknown as HTMLCanvasElement['getContext'],
+      );
+    });
+
+    afterEach(() => {
+      quick()?.remove();
+    });
+
+    it('точки до первой отрисовки: холст на всё окно, глобус там, где он был у лендинга в момент обрыва', () => {
+      const e = ease((CUT - (NOW - 300)) / 600);
+      const lat = 49 + (30 - 49) * e;
+      const lon = 40.5 - ((CUT - (NOW - 300)) / 1000) * 5;
+      // точка на широте вида и ближайшей долготе сетки 0,1°
+      const j = Math.round((lon + 180) / 0.1 - 0.5);
+      store([[lat, 3600, j, 1]]);
+      enter();
+      const c = quick();
+      expect(c).not.toBeNull();
+      expect(c?.parentElement).toBe(document.documentElement);
+      expect(c?.getAttribute('aria-hidden')).toBe('true');
+      expect(c?.style.position).toBe('fixed');
+      expect(c?.style.zIndex).toBe('-1');
+      const W = innerWidth;
+      const H = innerHeight;
+      const x = 1181 + (0.75 * W - 1181) * e;
+      const y = 567.4 + (0.55 * H - 567.4) * e;
+      const R = 840 + (W / 4 + 260 - 840) * e;
+      // край диска — центр и радиус глобуса
+      expect(ops.strokes).toHaveLength(1);
+      const [[sx, sy, sr]] = ops.strokes[0].discs;
+      expect(sx).toBeCloseTo(x, 6);
+      expect(sy).toBeCloseTo(y, 6);
+      expect(sr).toBeCloseTo(R, 6);
+      expect(ops.strokes[0].style).toBe('rgba(255, 255, 255, 0.1)');
+      // точка в центре вида: самая яркая полоса, в пределах доли px от центра
+      expect(ops.fills).toHaveLength(1);
+      expect(ops.fills[0].style).toBe('rgba(255, 255, 255, 0.34)');
+      const [[dx, dy]] = ops.fills[0].discs;
+      expect(Math.hypot(dx - x, dy - y)).toBeLessThan(1);
+    });
+
+    it('светлая тема — цветом текста лендинга', () => {
+      // класс light ставит скрипт темы выше (по theme из метки)
+      html().add('light');
+      try {
+        store([[30, 72, 0, 72]]);
+        enter(`/?from=landing&theme=light&bg=e5e7eb&fg=111827&lon=40.5&t=${NOW - 300}&${FLY}`);
+        expect(ops.fills.length).toBeGreaterThan(0);
+        for (const f of ops.fills) expect(f.style.startsWith('rgba(17, 24, 39, ')).toBe(true);
+      } finally {
+        html().remove('light');
+      }
+    });
+
+    it.each([
+      ['без перелёта', `/?from=landing&lon=40.5&t=${NOW - 300}`, () => store([[30, 72, 0, 72]])],
+      ['точек нет', undefined, () => {}],
+      ['не JSON', undefined, () => localStorage.setItem(DOTS_KEY, '{')],
+      ['rows не список', undefined, () => store('x')],
+    ])('%s: не рисуется', (_, mark, setup) => {
+      setup();
+      enter(mark);
+      expect(quick()).toBeNull();
+    });
+
+    it('Chrome с подсказкой (путь с blocking): не рисуется — глобус будет в первой отрисовке и так', () => {
+      Object.defineProperty(HTMLScriptElement.prototype, 'blocking', { configurable: true, value: '' });
+      try {
+        localStorage.setItem(HINT_KEY, JSON.stringify(HINT));
+        store([[30, 72, 0, 72]]);
+        enter();
+        expect(quick()).toBeNull();
+        // Chrome без подсказки (первый вход) — рисуется
+        for (const el of document.head.querySelectorAll('script')) el.remove();
+        localStorage.removeItem(HINT_KEY);
+        enter();
+        expect(quick()).not.toBeNull();
+      } finally {
+        delete (HTMLScriptElement.prototype as unknown as { blocking?: string }).blocking;
+      }
+    });
+
+    it('уходит с первым кадром глобуса', async () => {
+      gpuModule();
+      store([[30, 72, 0, 72]]);
+      enter();
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(quick()).not.toBeNull();
+      act(() => instances[0].options.onReady());
+      expect(quick()).toBeNull();
+    });
+
+    it('уходит с концом входа (глобуса не было), и не позже 3 с', async () => {
+      store([[30, 72, 0, 72]]);
+      enter();
+      await capture();
+      const { releaseLandingEntry } = await import('./landingEntry');
+      releaseLandingEntry();
+      await act(flush);
+      expect(quick()).toBeNull();
+      store([[30, 72, 0, 72]]);
+      enter();
+      expect(quick()).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(quick()).toBeNull();
+    });
+
+    it('точки для следующего входа: { v, rows } версии config.json, через 3 с после загрузки; та же версия — не запрашиваются', async () => {
+      const ROWS = [[30, 72, 0, 72]];
+      fetchMock.mockImplementation((url: string) =>
+        Promise.resolve(
+          new Response(JSON.stringify(String(url).includes('globe-data') ? { rows: ROWS } : CONFIG), {
+            status: 200,
+          }),
+        ),
+      );
+      enter();
+      await act(flush);
+      const asked = () => fetchMock.mock.calls.filter(([u]) => String(u).includes('globe-data')).length;
+      expect(asked()).toBe(0);
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+        await flush();
+      });
+      expect(asked()).toBe(1);
+      expect(fetchMock.mock.calls.find(([u]) => String(u).includes('globe-data'))?.[0]).toBe(
+        '/bb-globe/globe-data.json?v=abc',
+      );
+      expect(JSON.parse(localStorage.getItem(DOTS_KEY) ?? 'null')).toEqual({ v: 'abc', rows: ROWS });
+      quick()?.remove();
+      delete (window as unknown as { __bbGlobeEarly?: Early }).__bbGlobeEarly;
+      enter();
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+        await flush();
+      });
+      expect(asked()).toBe(1);
+    });
+  });
+
   describe('перелёт лендинга (fly в метке)', () => {
     const FLY = 'fly=1181.0,567.4,840.0,49.00,600';
     /** Ответ кабинета начал приходить на 180-й мс навигации, сейчас 400-я: лендинг перестал рисовать 220 мс назад. */
