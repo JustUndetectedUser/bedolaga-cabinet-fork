@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useBlockingStore } from '../../../store/blocking';
 import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
 import { claimEarlyLayer } from './earlyGlobe';
+import { freeAt } from './globeHover';
 import { globeColors } from './globeColors';
 import { landingEntryPending, landingSpinFrom, releaseLandingEntry } from './landingEntry';
 import { setReturnLayer } from './landingReturn';
@@ -204,6 +205,14 @@ function wrapLayer(el: HTMLDivElement, globe: BBGlobeInstance, built: GlobeColor
     sync();
   });
   sync();
+
+  // BlackBird: свет под курсором (владелец 20.11), только с мышью и только над
+  // свободным местом страницы (globeHover.ts); модуль до него без hoverOn — без света
+  try {
+    if (window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) globe.hoverOn?.(freeAt);
+  } catch {
+    // без matchMedia — без света
+  }
 
   // BlackBird: возврат на лендинг (landingReturn.ts) берёт позу этого глобуса,
   // пока он виден фоном «Главной» или входа

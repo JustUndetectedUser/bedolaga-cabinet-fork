@@ -88,6 +88,11 @@ export interface BBGlobeInstance {
   /** BlackBird: вид — долгота и широта в центре, радиус в px; null, пока данные не пришли */
   readonly view?: { lon: number; lat: number; R: number } | null;
   setColors(colors: Partial<GlobeColors>): void;
+  /**
+   * BlackBird: свет под курсором вокруг точек суши; free(x, y) — курсор (px окна) над
+   * свободным местом (нет у модуля до него — потому необязателен)
+   */
+  hoverOn?(free?: (x: number, y: number) => boolean): void;
   /** конец hold: вращение дальше с того места, где стоял (нет у модуля до hold — потому необязателен) */
   resume?(): void;
   /**

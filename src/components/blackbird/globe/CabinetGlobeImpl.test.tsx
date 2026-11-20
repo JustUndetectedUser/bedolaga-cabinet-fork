@@ -35,6 +35,7 @@ const instances: {
   options: Options;
   setColors: ReturnType<typeof vi.fn>;
   destroy: ReturnType<typeof vi.fn>;
+  hoverOn: ReturnType<typeof vi.fn>;
   resume: ReturnType<typeof vi.fn>;
   checkDevice: ReturnType<typeof vi.fn>;
   /** как модуль, когда globe-data.json не загрузился: failed и пустой корень */
@@ -48,6 +49,7 @@ class FakeGlobe {
   setColors = vi.fn();
   destroy = vi.fn();
   resume = vi.fn();
+  hoverOn = vi.fn();
   checked = vi.fn();
   still = false;
   failed = false;
@@ -68,6 +70,7 @@ class FakeGlobe {
       options,
       setColors: this.setColors,
       destroy: this.destroy,
+      hoverOn: this.hoverOn,
       resume: this.resume,
       checkDevice: this.checked,
       fail,
@@ -1649,5 +1652,31 @@ describe('CabinetGlobe: возврат на лендинг (landingReturn)', () 
     vi.advanceTimersByTime(300);
     expect(layers()).toHaveLength(0);
     expect(await mark()).toBe('');
+  });
+});
+
+describe('CabinetGlobe: свет под курсором (владелец 20.11)', () => {
+  it('мышь: слой включает свет только над свободным местом — hoverOn(freeAt)', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q === '(hover: hover) and (pointer: fine)',
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const { freeAt } = await import('./globeHover');
+    await mount();
+    expect(instances[0].hoverOn).toHaveBeenCalledTimes(1);
+    expect(instances[0].hoverOn).toHaveBeenCalledWith(freeAt);
+  });
+
+  it('касание (телефон): света нет', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: false,
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    await mount();
+    expect(instances[0].hoverOn).not.toHaveBeenCalled();
   });
 });
