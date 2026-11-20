@@ -500,11 +500,21 @@
               } catch {
                 return;
               }
+              const keep = (d) => {
+                if (Array.isArray(d?.rows)) localStorage.setItem(DOTS_KEY, JSON.stringify({ v, rows: d.rows }));
+              };
+              // данные модуля с blocking уже здесь; иначе — из кэша
+              if (early.data) {
+                try {
+                  keep(early.data);
+                } catch {
+                  // хранилище полно — без упрощённого глобуса
+                }
+                return;
+              }
               fetch(`${base}globe-data.json?v=${encodeURIComponent(v)}`)
                 .then((r) => r.json())
-                .then((d) => {
-                  if (Array.isArray(d?.rows)) localStorage.setItem(DOTS_KEY, JSON.stringify({ v, rows: d.rows }));
-                })
+                .then(keep)
                 .catch(() => {});
             }, QUICK_MAX_MS);
           });

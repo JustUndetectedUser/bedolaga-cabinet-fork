@@ -1246,6 +1246,19 @@ describe('ранний глобус: index.html строит слой до React
       expect(importMock).not.toHaveBeenCalled();
     });
 
+    it('точки для упрощённого глобуса — из этих же данных, без второго запроса', async () => {
+      const ROWS = [[30, 72, 0, 72]];
+      entry();
+      now(gpuMod, { rows: ROWS, countries: {} });
+      await act(flush);
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+        await flush();
+      });
+      expect(JSON.parse(localStorage.getItem('bb-globe-dots') ?? 'null')).toEqual({ v: 'old', rows: ROWS });
+      expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('globe-data'))).toHaveLength(0);
+    });
+
     it('<body> ещё нет: строится, как только парсер его вставил', async () => {
       entry();
       const body = document.body;
