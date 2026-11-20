@@ -337,3 +337,17 @@ html.bb-leaving #root {
     clip-path: circle(var(--bb-reveal-r) at var(--bb-reveal-x) var(--bb-reveal-y));
   }
 }
+
+/* Включённый переключатель (отзыв 20.11): дорожка — цвет акцента (#F5F5F5 у палитры BlackBird), ручка — bg-white,
+   вместе одна белая капсула. У включённого (aria-checked, дорожка bg-accent-500: Switch из primitives, admin/Toggle и
+   самодельные в формах: дорожка — сама кнопка, ручка — span в ней; admin/Toggle: дорожка — div в кнопке, ручка — div в
+   ней) ручка тёмная: в тёмной теме цвета фона, в светлой — цвета текста. */
+.dark [role="switch"][aria-checked="true"][class*="bg-accent-500"] > span,
+.dark [role="switch"][aria-checked="true"] > [class*="bg-accent-500"] > div {
+  background-color: rgb(var(--color-dark-950));
+}
+
+.light [role="switch"][aria-checked="true"][class*="bg-accent-500"] > span,
+.light [role="switch"][aria-checked="true"] > [class*="bg-accent-500"] > div {
+  background-color: rgb(var(--color-dark-50));
+}
