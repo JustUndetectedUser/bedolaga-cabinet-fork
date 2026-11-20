@@ -38,6 +38,7 @@ import './styles/globals.css';
 import './styles/blackbird.css';
 // BlackBird: вход с лендинга
 import { captureLandingEntry } from './components/blackbird/globe/landingEntry';
+import { installPageReveal } from './components/blackbird/pageReveal';
 
 // BlackBird: метка входа с лендинга (?from=landing) — самым первым делом, до
 // роутера (его переход на /login её потерял бы) и до первой отрисовки.
@@ -48,6 +49,8 @@ captureLandingEntry(window);
 // string crashes any encodeURI/encodeURIComponent/btoa path on iOS WebKit,
 // including qrcode.react's internal encodeURI. See installEncodingSurrogateGuard.
 installEncodingSurrogateGuard();
+// BlackBird: содержимое на месте скелетона проявляется плавно (загрузка разделов)
+installPageReveal(document);
 
 // Polyfill Object.hasOwn for older iOS/Android WebViews (Safari < 15.4, old Chrome).
 // @telegram-apps/sdk v3 depends on valibot which uses Object.hasOwn internally.
