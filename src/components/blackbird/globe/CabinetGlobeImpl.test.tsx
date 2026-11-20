@@ -1162,6 +1162,170 @@ describe('ранний глобус: index.html строит слой до React
     },
   );
 
+  // Мигание на стыке (владелец 20.11, замер в Chrome на Windows): браузер показывал первую отрисовку кабинета (фон),
+  // а глобус приходил через 0,1-0,15 с — чёрный кадр между глобусом лендинга и глобусом кабинета. С подсказкой и
+  // перелётом модуль и данные идут статическим импортом в модуле с blocking="render": Chrome держит на экране последний
+  // кадр лендинга, пока этот модуль не выполнился, а он строит глобус с данными (опция data модуля: первый кадр — в
+  // конструкторе). Не выполнился за HOLD_MS — скрипт убирается (отрисовка идёт), загрузка — как без него.
+  describe('первая отрисовка с глобусом (blocking="render")', () => {
+    const HOLD_MS = 300;
+    const FLY_MARK = `${MARK}&fly=1181.0,567.4,840.0,49.00,600`;
+    const DATA = { rows: [], countries: {} };
+    const holdScript = () =>
+      document.head.querySelector('script[type="module"][blocking="render"]');
+    const now = (mod: unknown, data: unknown) =>
+      (early() as unknown as { now: (m: unknown, d: unknown) => void }).now(mod, data);
+    const optionsOf = (i: number) => ctor.mock.calls[i][1] as Options;
+    const noBlocking = () => {
+      delete (HTMLScriptElement.prototype as unknown as { blocking?: string }).blocking;
+    };
+    /** Ответ кабинета начал приходить на 180-й мс, сейчас 400-я (перелёт: cut). */
+    function navigated() {
+      vi.spyOn(performance, 'now').mockReturnValue(400);
+      vi.spyOn(performance, 'getEntriesByType').mockReturnValue([
+        { responseStart: 180 },
+      ] as unknown as PerformanceEntryList);
+    }
+    /** Вход с подсказкой и перелётом в браузере с blocking (Chrome); #root пуст. */
+    function entry(mark = FLY_MARK) {
+      localStorage.setItem(HINT_KEY, JSON.stringify(HINT));
+      navigated();
+      emptyRoot();
+      history.replaceState(null, '', mark);
+      inline();
+    }
+    let gpuMod: unknown;
+
+    beforeEach(async () => {
+      Object.defineProperty(HTMLScriptElement.prototype, 'blocking', {
+        configurable: true,
+        value: '',
+      });
+      gpuModule();
+      gpuMod = await importMock();
+      importMock.mockClear();
+    });
+
+    afterEach(() => {
+      noBlocking();
+      for (const el of document.head.querySelectorAll('script')) el.remove();
+    });
+
+    it('модуль с blocking="render": статический импорт модуля и данных версии подсказки; import() и preload нет', () => {
+      entry();
+      const s = holdScript();
+      expect(s).not.toBeNull();
+      expect(s?.textContent).toContain("import * as m from '/bb-globe/bb-globe.js?v=old';");
+      expect(s?.textContent).toContain(
+        "import d from '/bb-globe/globe-data.json?v=old' with { type: 'json' };",
+      );
+      expect(s?.textContent).toContain('window.__bbGlobeEarly.now(m, d);');
+      expect(importMock).not.toHaveBeenCalled();
+      expect(
+        document.head.querySelector('link[rel="preload"], link[rel="modulepreload"]'),
+      ).toBeNull();
+    });
+
+    it('модуль выполнился, точки на GPU: глобус построен сразу, с данными; загрузка — подсказка и модуль; второго нет', async () => {
+      entry();
+      now(gpuMod, DATA);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(optionsOf(0).data).toBe(DATA);
+      expect(optionsOf(0).dataUrl).toBe('/bb-globe/globe-data.json?v=old');
+      expect(early()?.layer?.el).toBe(layers()[0]);
+      expect(instances[0].resume).toHaveBeenCalledTimes(1);
+      expect(await early()?.load).toEqual({ config: HINT, mod: gpuMod });
+      await act(flush);
+      rendered();
+      await act(flush);
+      vi.advanceTimersByTime(DRAW_DELAY + HOLD_MS);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(importMock).not.toHaveBeenCalled();
+    });
+
+    it('<body> ещё нет: строится, как только парсер его вставил', async () => {
+      entry();
+      const body = document.body;
+      body.remove();
+      now(gpuMod, DATA);
+      expect(ctor).not.toHaveBeenCalled();
+      document.documentElement.appendChild(body);
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(optionsOf(0).data).toBe(DATA);
+    });
+
+    it('без GPU: сразу не строится — после первой отрисовки приложения, как раньше (с данными)', async () => {
+      gpuDots = false;
+      entry();
+      now({ BBGlobe: FakeGlobe, cabinetView, gpuDots: () => false }, DATA);
+      await act(flush);
+      expect(ctor).not.toHaveBeenCalled();
+      rendered();
+      await act(flush);
+      vi.advanceTimersByTime(DRAW_DELAY);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(optionsOf(0).data).toBe(DATA);
+      expect(instances[0].resume).not.toHaveBeenCalled();
+    });
+
+    it('модуль без BBGlobe или cabinetView: сам не строит', async () => {
+      entry();
+      now({ gpuDots: () => true }, DATA);
+      await act(flush);
+      expect(ctor).not.toHaveBeenCalled();
+    });
+
+    it('вход кончился до того, как модуль выполнился: сам не строит', async () => {
+      entry();
+      await capture();
+      const { releaseLandingEntry } = await import('./landingEntry');
+      releaseLandingEntry();
+      now(gpuMod, DATA);
+      await act(flush);
+      expect(ctor).not.toHaveBeenCalled();
+    });
+
+    it('не выполнился за 300 мс: скрипт убран (отрисовка идёт), загрузка — как без него; поздний — без второго глобуса', async () => {
+      entry();
+      act(() => {
+        vi.advanceTimersByTime(HOLD_MS - 1);
+      });
+      expect(holdScript()).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(holdScript()).toBeNull();
+      expect(importMock).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=old');
+      expect(document.head.querySelector('link[rel="preload"]')?.getAttribute('href')).toBe(
+        '/bb-globe/globe-data.json?v=old',
+      );
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      now(gpuMod, DATA);
+      await act(flush);
+      expect(ctor).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['браузер без blocking (Firefox)', noBlocking, FLY_MARK],
+      ['без подсказки', () => localStorage.removeItem(HINT_KEY), FLY_MARK],
+      ['без перелёта', () => {}, MARK],
+    ])('%s: как раньше — import(), без модуля с blocking', async (_, setup, mark) => {
+      localStorage.setItem(HINT_KEY, JSON.stringify(HINT));
+      setup();
+      navigated();
+      emptyRoot();
+      history.replaceState(null, '', mark);
+      inline();
+      expect(holdScript()).toBeNull();
+      await act(flush);
+      expect(importMock).toHaveBeenCalledTimes(1);
+      expect(ctor).toHaveBeenCalledTimes(1);
+      expect(optionsOf(0).data).toBeUndefined();
+    });
+  });
+
   describe('перелёт лендинга (fly в метке)', () => {
     const FLY = 'fly=1181.0,567.4,840.0,49.00,600';
     /** Ответ кабинета начал приходить на 180-й мс навигации, сейчас 400-я: лендинг перестал рисовать 220 мс назад. */

@@ -309,7 +309,72 @@
           const hint = stored();
           // свежий список — в подсказку следующему входу (неверный или 404 — её нет)
           fresh.then(remember);
-          early.load = (hint ? files(hint) : fresh.then((c) => (c ? files(c) : null))).catch(() => null);
+          // Первая отрисовка с глобусом (владелец 20.11: мигание на стыке). Браузер
+          // показывает первую отрисовку кабинета, а глобус приходит позже: между
+          // глобусом лендинга и глобусом кабинета был чёрный кадр 0,1-0,15 с. С
+          // подсказкой и перелётом модуль и данные идут статическим импортом в модуле
+          // с blocking="render" (Chrome): браузер держит на экране последний кадр
+          // лендинга, пока этот модуль не выполнился, а он строит глобус с данными
+          // (опция data модуля: первый кадр — сразу, в конструкторе). Не выполнился за
+          // HOLD_MS (файлы не в кэше) — скрипт убирается, отрисовка идёт, загрузка —
+          // как без него (тот же модуль и те же данные, по одному запросу). Без
+          // blocking (Firefox, Safari) — как раньше.
+          const HOLD_MS = 300;
+          let holdable = false;
+          try {
+            holdable = !!hint && !!arrive && 'blocking' in HTMLScriptElement.prototype;
+          } catch {
+            // нет HTMLScriptElement — как раньше
+          }
+          const hold = (config) =>
+            new Promise((done) => {
+              const v = encodeURIComponent(String(config.v));
+              let got = false;
+              early.now = (mod, data) => {
+                got = true;
+                early.data = data;
+                done({ config, mod });
+                // точки на GPU — строим сейчас, до первой отрисовки; без GPU — после
+                // первой отрисовки приложения, как раньше (ниже)
+                const go = () => {
+                  if (!html.classList.contains('bb-entry-black')) return;
+                  if (typeof mod?.BBGlobe !== 'function' || typeof mod.cabinetView !== 'function') return;
+                  let gpu = false;
+                  try {
+                    gpu = mod.gpuDots?.() === true;
+                  } catch {
+                    // WebGL не дали — как без GPU
+                  }
+                  if (!gpu || early.layer || early.dropped || early.adopted) return;
+                  ahead = true;
+                  build(config, mod);
+                };
+                // <body> ещё нет (модуль из кэша выполнился раньше, чем парсер до него
+                // дошёл): как только он вставлен — до первой отрисовки
+                if (document.body) go();
+                else
+                  new MutationObserver((_, mo) => {
+                    if (!document.body) return;
+                    mo.disconnect();
+                    go();
+                  }).observe(html, { childList: true });
+              };
+              const s = document.createElement('script');
+              s.type = 'module';
+              s.setAttribute('blocking', 'render');
+              s.textContent =
+                `import * as m from '${base}bb-globe.js?v=${v}';` +
+                `import d from '${base}globe-data.json?v=${v}' with { type: 'json' };` +
+                'window.__bbGlobeEarly.now(m, d);';
+              document.head.appendChild(s);
+              setTimeout(() => {
+                s.remove();
+                if (!got) done(files(config));
+              }, HOLD_MS);
+            });
+          early.load = (
+            holdable ? hold(hint) : hint ? files(hint) : fresh.then((c) => (c ? files(c) : null))
+          ).catch(() => null);
           // Без GPU строится — когда приложение отрисовалось (первый узел в #root):
           // до того главный поток — бандлу и React (кадр холста и его передача на
           // экран без GPU стоят десятки мс), а сеть уже вся сделана. Не
@@ -374,6 +439,8 @@
             try {
               layer.globe = new m.BBGlobe(el, {
                 dataUrl: `${base}globe-data.json?v=${encodeURIComponent(String(v))}`,
+                // данные уже пришли (модуль с blocking выше): первый кадр — сразу
+                ...(early.data ? { data: early.data } : {}),
                 servers: c.servers,
                 spin: 5,
                 spinFrom: ok ? { lon, at } : null,
