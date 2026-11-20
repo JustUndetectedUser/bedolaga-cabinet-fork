@@ -1231,6 +1231,9 @@ describe('ранний глобус: index.html строит слой до React
       now(gpuMod, DATA);
       expect(ctor).toHaveBeenCalledTimes(1);
       expect(optionsOf(0).data).toBe(DATA);
+      // не стоит: первый кадр (в конструкторе) продолжает перелёт лендинга
+      expect(optionsOf(0).hold).toBe(false);
+      expect(optionsOf(0).arrive).not.toBeNull();
       expect(optionsOf(0).dataUrl).toBe('/bb-globe/globe-data.json?v=old');
       expect(early()?.layer?.el).toBe(layers()[0]);
       expect(instances[0].resume).toHaveBeenCalledTimes(1);
@@ -1386,12 +1389,15 @@ describe('ранний глобус: index.html строит слой до React
       expect(arrive()).toBeNull();
     });
 
-    it('точки на GPU: глобус не ждёт страницу — hold снят сразу, до первого кадра', async () => {
-      gpuDots = true;
+    it('точки на GPU: глобус не ждёт страницу — не стоит с самого начала (первый кадр может быть в конструкторе)', async () => {
+      gpuModule();
       navigated();
-      await inlineBuilt(`/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`);
-      expect(instances[0].options.hold).toBe(true);
-      expect(instances[0].resume).toHaveBeenCalledTimes(1);
+      emptyRoot();
+      history.replaceState(null, '', `/?from=landing&lon=40.5&t=${NOW - 300}&${FLY}`);
+      inline();
+      await act(flush);
+      expect(instances[0].options.hold).toBe(false);
+      expect(instances[0].options.arrive).not.toBeNull();
     });
 
     it('без GPU: стоит до страницы, как раньше', async () => {
