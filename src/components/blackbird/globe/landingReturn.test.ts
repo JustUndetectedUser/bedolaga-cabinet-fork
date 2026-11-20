@@ -182,12 +182,8 @@ describe('blackbird.css: уход на лендинг', () => {
     );
   });
 
-  it('ПК: полоса 72 px цвета фона слоя проявляется за 0,3 с (у лендинга глобус под шапкой)', () => {
-    expect(css).toMatch(
-      /@media \(min-width: 1024px\) \{\s*html\.bb-leaving \.bb-globe-layer::after \{\s*content: "";\s*position: absolute;\s*top: 0;\s*left: 0;\s*right: 0;\s*height: 72px;\s*background-color: inherit;\s*animation: bb-leave-band 0\.3s ease both;\s*\}/,
-    );
-    expect(css).toMatch(
-      /@keyframes bb-leave-band \{\s*from \{\s*opacity: 0;\s*\}\s*to \{\s*opacity: 1;\s*\}/,
-    );
+  it('ПК: полосы над глобусом нет — лендинг принимает его целым, шапка опускается на него (владелец 20.11)', () => {
+    expect(css).not.toMatch(/bb-leave-band|bb-globe-layer::after/);
   });
+
 });

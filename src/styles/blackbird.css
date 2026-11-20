@@ -245,39 +245,11 @@ html.bb-entry-in .bb-globe-shade {
   transition: none;
 }
 
-/* У лендинга на ПК глобус начинается под его шапкой (72 px), шапка погасла в
-   фон страницы. Слой кабинета — на всё окно: без этой полосы точки над 72 px
-   появились бы резкой полосой в момент смены страницы. Первый кадр глобуса их
-   закрывает полоса цвета фона слоя (inherit: модуль ставит его слою сам, это
-   цвет, в который растворяются края глобуса), и сразу гаснет за 0,4 с: глобус
-   остаётся на экране как загрузка, и ждать с ней содержимого незачем.
-   Только от 1024 px: на телефоне лендинг отдаёт глобус слоем на всё окно, без
-   шапки над ним. */
-@media (min-width: 1024px) {
-  html.bb-entry-black .bb-globe-layer::after,
-  html.bb-entry-in .bb-globe-layer::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 72px;
-    background-color: inherit;
-  }
-
-  html.bb-entry-black .bb-globe-layer.is-ready::after,
-  html.bb-entry-in .bb-globe-layer::after {
-    opacity: 0;
-    transition: opacity 0.4s ease-out;
-  }
-}
-
 /* Возврат на лендинг (src/components/blackbird/globe/landingReturn.ts): логотип на «Главной» в браузере, глобус на
    экране. Интерфейс гаснет за 0,3 с и не ловит нажатий, глобус остаётся и вращается, а браузер уже идёт на лендинг:
    тот откроется с глобусом на том же месте. На телефоне глобус в кабинете приглушён (0.6), а на лендинге он один на
-   экране - за те же 0,3 с в полную яркость. У лендинга на ПК глобус начинается под его шапкой (72 px): сверху за те
-   же 0,3 с проявляется полоса цвета фона слоя (inherit: модуль ставит его слою сам), и на стыке страниц полосы точек
-   над 72 px нет (зеркало полосы входа выше). */
+   экране - за те же 0,3 с в полную яркость. Глобус целый: лендинг принимает его так же (его шапка ждёт над окном и
+   опускается в конце; с 20.11 полосы 72 px над глобусом нет ни при входе, ни при уходе). */
 html.bb-leaving #root {
   opacity: 0;
   pointer-events: none;
@@ -288,28 +260,6 @@ html.bb-leaving #root {
   html.bb-leaving .bb-globe-layer.is-ready {
     opacity: 1;
     transition: opacity 0.3s ease;
-  }
-}
-
-@media (min-width: 1024px) {
-  html.bb-leaving .bb-globe-layer::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 72px;
-    background-color: inherit;
-    animation: bb-leave-band 0.3s ease both;
-  }
-}
-
-@keyframes bb-leave-band {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }
 

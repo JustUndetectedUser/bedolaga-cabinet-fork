@@ -600,26 +600,8 @@ describe('blackbird.css: числа входа', () => {
     expect(rule('html.bb-entry-in #root')).toMatch(/transition: opacity 0\.4s/);
   });
 
-  it('полоса шапки лендинга (0..72 px, только от 1024 px) закрыта первым кадром и гаснет за 0,4 с, как только глобус нарисован', () => {
-    const desktop = cssSource.slice(
-      cssSource.indexOf(
-        '@media (min-width: 1024px) {\n  html.bb-entry-black .bb-globe-layer::after',
-      ),
-    );
-    expect(desktop).toMatch(
-      /^@media \(min-width: 1024px\) \{\s*html\.bb-entry-black \.bb-globe-layer::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{[^}]*height: 72px;/,
-    );
-    // гаснет не с содержимым (оно может прийти через секунды), а с первым кадром глобуса
-    expect(desktop).toMatch(
-      /html\.bb-entry-black \.bb-globe-layer\.is-ready::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{\s*opacity: 0;\s*transition: opacity 0\.4s ease-out;\s*\}/,
-    );
-    // вне медиа-запросов ПК полосы нет: у телефона лендинг отдаёт глобус слоем на всё окно, без шапки над ним
-    // (второй такой блок — полоса ухода на лендинг, landingReturn.ts)
-    const outside = cssSource.replace(
-      /@media \(min-width: 1024px\) \{\s*html\.bb-(?:entry-black|leaving) \.bb-globe-layer::after[\s\S]*?\n\}\n/g,
-      '',
-    );
-    expect(outside).not.toMatch(/bb-globe-layer::after/);
+  it('полосы над шапкой лендинга нет: лендинг отдаёт глобус целым, шапка уезжает вверх (владелец 20.11)', () => {
+    expect(cssSource).not.toMatch(/bb-globe-layer::after/);
   });
 
   it('содержимое появляется с подъёмом 12 px за 0,4 с (колонка, не закреплённая шапка)', () => {
