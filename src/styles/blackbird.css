@@ -271,6 +271,47 @@ html.bb-entry-in .bb-globe-shade {
   }
 }
 
+/* Возврат на лендинг (src/components/blackbird/globe/landingReturn.ts): логотип на «Главной» в браузере, глобус на
+   экране. Интерфейс гаснет за 0,3 с и не ловит нажатий, глобус остаётся и вращается, а браузер уже идёт на лендинг:
+   тот откроется с глобусом на том же месте. На телефоне глобус в кабинете приглушён (0.6), а на лендинге он один на
+   экране - за те же 0,3 с в полную яркость. У лендинга на ПК глобус начинается под его шапкой (72 px): сверху за те
+   же 0,3 с проявляется полоса цвета фона слоя (inherit: модуль ставит его слою сам), и на стыке страниц полосы точек
+   над 72 px нет (зеркало полосы входа выше). */
+html.bb-leaving #root {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+@media (max-width: 1023px) {
+  html.bb-leaving .bb-globe-layer.is-ready {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+}
+
+@media (min-width: 1024px) {
+  html.bb-leaving .bb-globe-layer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 72px;
+    background-color: inherit;
+    animation: bb-leave-band 0.3s ease both;
+  }
+}
+
+@keyframes bb-leave-band {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Смена темы переключателем (src/components/blackbird/themeReveal.ts): новая тема раскрывается кругом от точки
    нажатия поверх старой за 0,5 с. Круг - CSS-анимация нового вида перехода, браузер запускает её вместе с переходом,
    с первого кадра; скрипт до перехода ставит класс bb-reveal и где и докуда (--bb-reveal-x, --bb-reveal-y - точка

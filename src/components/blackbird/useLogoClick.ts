@@ -3,6 +3,8 @@ import { useLocation } from 'react-router';
 
 import { usePlatform } from '@/platform';
 
+import { leaveForLanding } from './globe/landingReturn';
+
 /**
  * Адрес лендинга. Задаётся при сборке (VITE_LANDING_URL); без него логотип
  * ведёт на главную, как в апстриме.
@@ -32,7 +34,8 @@ function landingHref(): string {
  * Не на главной — обычный переход на главную (`<Link to="/">`).
  * Уже на главной — на лендинг в теме кабинета: в вебе в той же вкладке, в
  * Mini App — через Telegram (openLink), чтобы не уводить сам Mini App со
- * страницы.
+ * страницы. В вебе с глобусом на экране — возврат с глобусом: интерфейс гаснет,
+ * адрес с меткой возврата (globe/landingReturn.ts).
  */
 export function useLogoClick(onClick?: () => void) {
   const { pathname } = useLocation();
@@ -48,6 +51,6 @@ export function useLogoClick(onClick?: () => void) {
 
     event.preventDefault();
     if (platform === 'telegram') openLink(landingHref());
-    else window.location.assign(landingHref());
+    else leaveForLanding(landingHref());
   };
 }

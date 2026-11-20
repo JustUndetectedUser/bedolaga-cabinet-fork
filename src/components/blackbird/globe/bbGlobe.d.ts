@@ -82,6 +82,11 @@ export interface BBGlobeInstance {
   readonly failed?: boolean;
   /** точки суши рисует GPU (WebGL): кадр дешёвый (нет у модуля до GPU — потому необязателен) */
   readonly gpu?: boolean;
+  /** BlackBird: центр глобуса в px корня (для метки возврата на лендинг, landingReturn.ts) */
+  readonly cx?: number;
+  readonly cy?: number;
+  /** BlackBird: вид — долгота и широта в центре, радиус в px; null, пока данные не пришли */
+  readonly view?: { lon: number; lat: number; R: number } | null;
   setColors(colors: Partial<GlobeColors>): void;
   /** конец hold: вращение дальше с того места, где стоял (нет у модуля до hold — потому необязателен) */
   resume?(): void;

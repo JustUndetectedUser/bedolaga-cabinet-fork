@@ -613,9 +613,10 @@ describe('blackbird.css: числа входа', () => {
     expect(desktop).toMatch(
       /html\.bb-entry-black \.bb-globe-layer\.is-ready::after,\s*html\.bb-entry-in \.bb-globe-layer::after \{\s*opacity: 0;\s*transition: opacity 0\.4s ease-out;\s*\}/,
     );
-    // вне медиа-запроса полосы нет: у телефона лендинг отдаёт глобус слоем на всё окно, без шапки над ним
+    // вне медиа-запросов ПК полосы нет: у телефона лендинг отдаёт глобус слоем на всё окно, без шапки над ним
+    // (второй такой блок — полоса ухода на лендинг, landingReturn.ts)
     const outside = cssSource.replace(
-      /@media \(min-width: 1024px\) \{\s*html\.bb-entry-black \.bb-globe-layer::after[\s\S]*?\n\}\n/,
+      /@media \(min-width: 1024px\) \{\s*html\.bb-(?:entry-black|leaving) \.bb-globe-layer::after[\s\S]*?\n\}\n/g,
       '',
     );
     expect(outside).not.toMatch(/bb-globe-layer::after/);

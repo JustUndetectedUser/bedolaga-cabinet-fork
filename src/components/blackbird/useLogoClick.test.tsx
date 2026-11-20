@@ -105,6 +105,31 @@ describe('логотип в шапке', () => {
     },
   );
 
+  it('на главной в вебе с глобусом на экране — кабинет гаснет и уходит с меткой возврата', async () => {
+    document.documentElement.className = 'dark';
+    const { setReturnLayer } = await import('./globe/landingReturn');
+    const globe = { cx: 960, cy: 361.94, view: { lon: 10, lat: 30, R: 580 } };
+    setReturnLayer({ el: document.createElement('div'), globe: globe as never, shown: () => true });
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    await renderAt('/', LANDING);
+    expect(assign).toHaveBeenCalledWith(
+      'https://landing.example/?theme=dark&from=cabinet&lon=10.00&t=1700000000000&pose=960.0,361.9,580.0,30.00',
+    );
+    expect(document.documentElement.classList.contains('bb-leaving')).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('в Telegram с глобусом — openLink только с темой, кабинет не гаснет', async () => {
+    platform.value = 'telegram';
+    document.documentElement.className = 'dark';
+    const { setReturnLayer } = await import('./globe/landingReturn');
+    const globe = { cx: 960, cy: 361.94, view: { lon: 10, lat: 30, R: 580 } };
+    setReturnLayer({ el: document.createElement('div'), globe: globe as never, shown: () => true });
+    await renderAt('/', LANDING);
+    expect(openLink).toHaveBeenCalledWith('https://landing.example/?theme=dark');
+    expect(document.documentElement.classList.contains('bb-leaving')).toBe(false);
+  });
+
   it('без VITE_LANDING_URL — как в апстриме', async () => {
     await renderAt('/', '');
     expect(screen.getByText('home')).toBeTruthy();

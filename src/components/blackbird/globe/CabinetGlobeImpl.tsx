@@ -5,6 +5,7 @@ import type { BBGlobeInstance, GlobeColors } from './bbGlobe';
 import { claimEarlyLayer } from './earlyGlobe';
 import { globeColors } from './globeColors';
 import { landingEntryPending, landingSpinFrom, releaseLandingEntry } from './landingEntry';
+import { setReturnLayer } from './landingReturn';
 import { type LoadedGlobe, loadGlobe } from './loadGlobe';
 
 /** Окно меньше 1024 px по ширине — телефонный вид: не больше 30 кадров/с (cabinetView меняет вид там же). */
@@ -204,6 +205,18 @@ function wrapLayer(el: HTMLDivElement, globe: BBGlobeInstance, built: GlobeColor
   });
   sync();
 
+  // BlackBird: возврат на лендинг (landingReturn.ts) берёт позу этого глобуса,
+  // пока он виден фоном «Главной» или входа
+  setReturnLayer({
+    globe,
+    el,
+    shown: () =>
+      layer.ready &&
+      !layer.dead &&
+      layer.loud > 0 &&
+      !el.classList.contains('bb-globe-layer--paused'),
+  });
+
   layer.stop = () => {
     failObserver.disconnect();
     themeObserver.disconnect();
@@ -224,6 +237,7 @@ function destroyLayer(layer: Layer) {
   const owned = shared === layer && layer.el.isConnected;
   if (shared === layer) shared = null;
   if (owned) document.body.classList.remove('bb-globe-on', 'bb-globe-quiet');
+  if (owned) setReturnLayer(null);
   layer.stop();
   try {
     layer.globe.destroy();

@@ -52,6 +52,10 @@ class FakeGlobe {
   still = false;
   failed = false;
   gpu = gpuDots;
+  // BlackBird: где глобус в корне и его вид (метка возврата на лендинг, landingReturn.ts)
+  cx = 1080;
+  cy = 495;
+  view = { lon: 10, lat: 30, R: 620 };
   constructor(root: HTMLElement, options: Options) {
     ctor(root, options);
     root.appendChild(document.createElement('canvas'));
@@ -1597,5 +1601,53 @@ describe('ранний глобус: index.html строит слой до React
     await mount();
     expect(ctor).toHaveBeenCalledTimes(2);
     expect(layers()).toHaveLength(1);
+  });
+});
+
+describe('CabinetGlobe: возврат на лендинг (landingReturn)', () => {
+  const T = 1_700_000_000_000;
+  const mark = async () => (await import('./landingReturn')).returnMark(T);
+  const HOME = '&from=cabinet&lon=10.00&t=1700000000000&pose=1080.0,495.0,620.0,30.00';
+
+  it('«Главная» с нарисованным глобусом: метка есть; до первого кадра — нет', async () => {
+    await mount();
+    expect(await mark()).toBe('');
+    act(() => instances[0].options.onReady());
+    expect(await mark()).toBe(HOME);
+  });
+
+  it('только рабочая страница (quiet): метки нет; вместе с «Главной» — есть', async () => {
+    const { rerender, CabinetGlobe } = await mount((G) => <G quiet />);
+    act(() => instances[0].options.onReady());
+    expect(await mark()).toBe('');
+    rerender(
+      <>
+        <CabinetGlobe quiet />
+        <CabinetGlobe />
+      </>,
+    );
+    await act(settle);
+    expect(await mark()).toBe(HOME);
+  });
+
+  it('экран блокировки (слой за экраном): метки нет', async () => {
+    await mount();
+    act(() => instances[0].options.onReady());
+    const { useBlockingStore } = await import('../../../store/blocking');
+    act(() => useBlockingStore.getState().setMaintenance({ message: 'Технические работы' }));
+    expect(await mark()).toBe('');
+    act(() => useBlockingStore.getState().clearBlocking());
+    expect(await mark()).toBe(HOME);
+  });
+
+  it('страница ушла, слой удалён (300 мс): метки нет', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { unmount } = await mount();
+    act(() => instances[0].options.onReady());
+    unmount();
+    await act(settle);
+    vi.advanceTimersByTime(300);
+    expect(layers()).toHaveLength(0);
+    expect(await mark()).toBe('');
   });
 });
