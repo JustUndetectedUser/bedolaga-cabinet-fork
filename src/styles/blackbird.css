@@ -349,3 +349,41 @@ html.bb-leaving #root {
     animation: none;
   }
 }
+
+/* Большой монитор (владелец 21.11.2026, как на лендинге): в окне больше 1440x800 по обеим сторонам кабинет увеличен
+   целиком, как зумом браузера (--bb-zoom и класс bb-zoom ставит скрипт page-zoom в index.html). Зум на body: и
+   приложение, и окна, меню, уведомления (порталы в body). Единицы окна (vh, vw...) внутри зума выросли бы вместе с
+   ним, поэтому при сборке они делятся на --bb-vz (vite-plugins/postcssViewportZoom.js): зум элемента, вне зума 1.
+   Слой глобуса — снова в пикселях окна (зум 1): модуль меряет его и рисует холст в размер окна, вид глобуса как
+   раньше (cabinetView по окну), перелёт с лендинга и обратно не меняется. */
+html.bb-zoom body {
+  zoom: var(--bb-zoom);
+  --bb-vz: var(--bb-zoom);
+}
+
+html.bb-zoom .bb-globe-layer {
+  zoom: calc(1 / var(--bb-zoom));
+  --bb-vz: 1;
+}
+
+/* Всплывающие меню, подсказки, списки Radix: floating-ui ставит их по координатам окна (getBoundingClientRect уже
+   с зумом), а сдвиг (transform) внутри зума вырос бы ещё раз. Обёртка — снова в пикселях окна, её содержимое — в
+   зуме страницы. */
+html.bb-zoom [data-radix-popper-content-wrapper] {
+  zoom: calc(1 / var(--bb-zoom));
+  --bb-vz: 1;
+}
+
+html.bb-zoom [data-radix-popper-content-wrapper] > * {
+  zoom: var(--bb-zoom);
+  --bb-vz: var(--bb-zoom);
+}
+
+/* Плашка активного пункта меню (framer-motion layoutId, AppShell.tsx; на телефоне — MobileBottomNav.tsx): при переходе
+   framer-motion меряет старое и новое место в пикселях окна и сдвигает плашку на разницу, а сдвиг внутри зума вырос бы
+   ещё раз — в начале перехода плашка отскакивала назад. Плашка — снова в пикселях окна; она inset: 0, коробка та же. */
+html.bb-zoom a > span.absolute.inset-0.rounded-full.shadow-sm,
+html.bb-zoom a > div.absolute.inset-0.rounded-2xl {
+  zoom: calc(1 / var(--bb-zoom));
+  --bb-vz: 1;
+}

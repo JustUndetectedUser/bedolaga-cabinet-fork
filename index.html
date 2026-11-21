@@ -21,6 +21,31 @@
     <title>__APP_NAME__</title>
     <meta name="application-name" content="__APP_NAME__" />
     <meta name="apple-mobile-web-app-title" content="__APP_NAME__" />
+    <script data-hint="page-zoom">
+      // BlackBird: масштаб на большом мониторе (владелец 21.11.2026, как на
+      // лендинге). В окне больше 1440x800 по обеим сторонам кабинет — это
+      // кабинет окна 1440x800 (по меньшей стороне), увеличенный целиком, как
+      // зумом браузера: --bb-zoom и класс bb-zoom на <html>, zoom на <body> —
+      // blackbird.css. Формула та же, что у --px лендинга (init.js pagePx):
+      // менять вместе. До первой отрисовки, чтобы ничего не прыгало; дальше —
+      // при каждом изменении окна. Меньше окно — ни класса, ни переменной,
+      // кабинет как раньше.
+      (() => {
+        const html = document.documentElement;
+        const set = () => {
+          const z = Math.max(1, Math.min(window.innerWidth / 1440, window.innerHeight / 800));
+          if (z > 1) {
+            html.style.setProperty('--bb-zoom', String(z));
+            html.classList.add('bb-zoom');
+          } else {
+            html.style.removeProperty('--bb-zoom');
+            html.classList.remove('bb-zoom');
+          }
+        };
+        set();
+        window.addEventListener('resize', set);
+      })();
+    </script>
     <script>
       // Load Telegram Web App script only inside Telegram environment
       (function () {
@@ -346,7 +371,8 @@
             const cp = Math.cos(lat0 * D);
             const c0 = Math.cos(lon0 * D);
             const s0 = Math.sin(lon0 * D);
-            const base = Math.max(0.55, Math.min(1.5, R / 560));
+            // как у модуля с опцией px: на большом окне (зум) точки крупнее
+            const base = Math.max(0.55, Math.min(1.5 * Math.max(1, Math.min(W / 1440, H / 800)), R / 560));
             const bands = [[], [], [], []];
             for (const row of rows) {
               const la = row[0] * D;
@@ -400,7 +426,9 @@
             c.style.cssText =
               'position:fixed;left:0;top:0;width:100%;height:100%;z-index:-1;pointer-events:none';
             const desk = W >= 1024;
-            const zoom = desk ? W / 4 + 260 : Math.min(1024 / 4 + 260, (Math.min(W, H) * 400) / 390);
+            // как cabinetView модуля (260 — в пикселях вёрстки: большое окно в зуме, page-zoom выше)
+            const px = Math.max(1, Math.min(W / 1440, H / 800));
+            const zoom = desk ? W / 4 + 260 * px : Math.min(1024 / 4 + 260, (Math.min(W, H) * 400) / 390);
             const e = 1 - (1 - Math.min(1, Math.max(0, (arrive.cut - arrive.at) / arrive.ms))) ** 4;
             const ink = light
               ? [1, 3, 5].map((i) => Number.parseInt(fg.slice(i, i + 2), 16)).join(', ')
@@ -604,6 +632,8 @@
                 focusX: view('focusX'),
                 focusY: view('focusY'),
                 zoom: view('zoom'),
+                // точки крупнее на большом окне, как у слоя приложения
+                px: typeof m.layoutPx === 'function' ? m.layoutPx : 1,
                 onReady: () => {
                   layer.ready = true;
                   // первый кадр глобуса нарисован (до этой отрисовки) — упрощённый уходит

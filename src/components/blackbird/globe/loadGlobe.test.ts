@@ -112,14 +112,26 @@ describe('loadGlobe', () => {
     expect(globe).toEqual({
       BBGlobe: FakeGlobe,
       cabinetView,
+      layoutPx: expect.any(Function),
       servers: SERVERS,
       dataUrl: '/bb-globe/globe-data.json?v=abc123',
     });
+    // модуль до масштаба больших мониторов: пиксель вёрстки всегда 1
+    expect(globe?.layoutPx(2560, 1272)).toBe(1);
     expect(importer).toHaveBeenCalledWith('/bb-globe/bb-globe.js?v=abc123');
     // Один аргумент: режим и учётные данные по умолчанию (cors, same-origin) — те же,
     // что у <link rel="preload" as="fetch" crossorigin>, иначе браузер запросит дважды.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]).toEqual(['/bb-globe/config.json']);
+  });
+
+  it('пиксель вёрстки — из модуля, если он его даёт (большой монитор: кабинет в зуме)', async () => {
+    fetchMock.mockResolvedValue(json({ v: 'abc123', servers: SERVERS }));
+    const loadGlobe = await load();
+    const layoutPx = (w: number, h: number) => Math.max(1, Math.min(w / 1440, h / 800));
+    const importer = vi.fn().mockResolvedValue({ BBGlobe: FakeGlobe, cabinetView, layoutPx });
+    const globe = await loadGlobe('/bb-globe/', importer);
+    expect(globe?.layoutPx).toBe(layoutPx);
   });
 
   it('результат один на страницу: второй вызов без запросов', async () => {
@@ -175,6 +187,7 @@ describe('loadGlobe: ранний глобус (index.html, вход с ленд
     expect(await loadGlobe('/bb-globe/', importer)).toEqual({
       BBGlobe: FakeGlobe,
       cabinetView,
+      layoutPx: expect.any(Function),
       servers: SERVERS,
       dataUrl: '/bb-globe/globe-data.json?v=abc',
     });

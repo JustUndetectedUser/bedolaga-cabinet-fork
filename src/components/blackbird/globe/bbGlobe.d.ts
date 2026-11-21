@@ -49,6 +49,8 @@ export interface BBGlobeOptions {
   /** не больше кадров в секунду; 0 — каждый кадр экрана */
   maxFps?: number;
   maxDpr?: number;
+  /** пиксель вёрстки страницы (больше 1 — большое окно, кабинет в зуме): во столько раз крупнее точки суши */
+  px?: number | ((w: number, h: number) => number);
   colors?: Partial<GlobeColors> | null;
   spinGate?: GlobeSpinGate | false;
   /** один раз, после первого полностью нарисованного кадра */
@@ -112,6 +114,12 @@ export type BBGlobeConstructor = new (
 export interface BBGlobeModule {
   BBGlobe: BBGlobeConstructor;
   cabinetView: (w: number, h: number) => GlobeView;
+  /**
+   * Пиксель вёрстки окна w x h: больше 1 в окне больше 1440x800 по обеим
+   * сторонам (там кабинет в зуме, index.html page-zoom). У модуля до
+   * масштаба больших мониторов его нет.
+   */
+  layoutPx?: (w: number, h: number) => number;
   /**
    * Будут ли точки суши у глобуса, построенного сейчас (с непрозрачным
    * colors.fade), на GPU. Спрашивает инлайн-скрипт index.html: с GPU глобус

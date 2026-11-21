@@ -77,6 +77,9 @@ function createLayer(g: LoadedGlobe): Layer | null {
       focusX: view('focusX'),
       focusY: view('focusY'),
       zoom: view('zoom'),
+      // большое окно: кабинет в зуме, глобус крупнее (cabinetView) — и точки
+      // крупнее во столько же раз
+      px: g.layoutPx ?? 1,
       // первый кадр приходит не раньше данных — слой к тому времени обвязан
       onReady: () => {
         if (layer) markReady(layer);

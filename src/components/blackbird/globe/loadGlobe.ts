@@ -5,6 +5,8 @@ import { earlyGlobe } from './earlyGlobe';
 export interface LoadedGlobe {
   BBGlobe: BBGlobeConstructor;
   cabinetView: (w: number, h: number) => GlobeView;
+  /** пиксель вёрстки окна (модуль без него — 1) */
+  layoutPx: (w: number, h: number) => number;
   servers: Record<string, unknown>;
   dataUrl: string;
 }
@@ -69,6 +71,7 @@ function loaded(base: string, config: unknown, module: unknown): LoadedGlobe | n
   return {
     BBGlobe: mod.BBGlobe,
     cabinetView: mod.cabinetView,
+    layoutPx: typeof mod.layoutPx === 'function' ? mod.layoutPx : () => 1,
     servers: config.servers,
     dataUrl: `${base}globe-data.json?v=${version(config)}`,
   };
