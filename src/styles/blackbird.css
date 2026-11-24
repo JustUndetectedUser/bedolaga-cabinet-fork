@@ -440,3 +440,33 @@ main[data-bb-narrow] .max-w-lg {
   font-size: 0.75rem;
   line-height: 1rem;
 }
+
+/* Одинаковые элементы — одного размера (ревью unslop, 24.11.2026, решение владельца: карточки 20 px, кнопки 40 px).
+   .card в upstream — 20 px на телефоне и 24 px с 640 px, .bento-card — всегда 20 px: на рефералах и в профиле
+   рядом стояли карточки с разным отступом.
+   Card из data-display (размер lg: p-5 sm:p-6) — те же 24 px с 640 px: баланс, профиль. */
+.card,
+[class*="rounded-[var(--bento-radius)]"][class*="sm:p-6"] {
+  padding: 20px;
+}
+
+/* .btn в upstream — не ниже 44 px, а кнопка в ряду с полем ввода растягивалась до его 46 px («Копировать» на
+   рефералах), при том что Button из primitives — 40 px («Копировать» в профиле). Все — 40 px. */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger,
+.btn-success {
+  min-height: 40px;
+}
+
+/* С 640 px поле и кнопка — ряд: кнопка (или обёртка с кнопками, как у ссылки на кабинет на рефералах) стоит по
+   центру, а не тянется до высоты поля. На телефоне это колонка, кнопка во всю ширину — не трогаем. */
+@media (min-width: 640px) {
+  .input + .btn-primary,
+  .input + .btn-secondary,
+  .input + .grid.sm\:flex {
+    align-self: center;
+  }
+}
