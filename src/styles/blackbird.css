@@ -385,3 +385,36 @@ html.bb-zoom a > div.absolute.inset-0.rounded-2xl {
   zoom: calc(1 / var(--bb-zoom));
   --bb-vz: 1;
 }
+
+/* Ревью unslop (24.11.2026), унаследованные экраны — правилами форка, без правок кода upstream.
+
+   transition-all (97 мест в upstream): анимируются только цвет, фон, рамка, прозрачность, сдвиг и тень. Размеры и
+   отступы больше не тянутся переходом — на слабых устройствах это рывки. Длительность и кривая остаются от класса. */
+.transition-all {
+  transition-property: color, background-color, border-color, opacity, transform, box-shadow;
+}
+
+/* Счётчик на колокольчике уведомлений и прочие появления «с перелётом» (scaleInBounce, кривая с выбросом 1,56):
+   то же появление без отскока, одной кривой с остальным кабинетом. */
+.animate-scale-in-bounce,
+.animate-scale-in,
+.onboarding-tooltip {
+  animation: bb-scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bb-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Веса: заголовки страниц и главные кнопки upstream стоят в 700 (font-bold). Иерархию держит размер — 600.
+   font-extrabold не трогаем: это крупная цифра главной, тот же приём, что заголовок лендинга. */
+.font-bold {
+  font-weight: 600;
+}
