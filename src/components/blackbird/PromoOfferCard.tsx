@@ -78,7 +78,7 @@ function PromoOfferCards() {
               onClick={() => claim.mutate(offer.id)}
               className="mt-3 inline-flex items-center gap-2 rounded-lg border border-accent-500/50 bg-accent-500/10 px-4 py-2 text-sm font-medium text-accent-400 transition-colors hover:bg-accent-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {t('blackbird.offer.button', '🎁 Вам доступен уникальный тариф')}
+              {t('blackbird.offer.button', 'Вам доступен уникальный тариф')}
             </button>
           ) : (
             <p className="mt-3 text-sm text-dark-200">

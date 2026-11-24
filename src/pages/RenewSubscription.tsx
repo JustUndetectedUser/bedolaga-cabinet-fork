@@ -188,7 +188,7 @@ export default function RenewSubscription() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:auto-rows-fr sm:grid-cols-2">
           {options.map((option) => {
             const isSelected = selectedPeriod === option.period_days;
             const canAfford = balanceKopeks >= option.price_kopeks;
@@ -214,18 +214,16 @@ export default function RenewSubscription() {
                       ? 'rgba(var(--color-accent-400), 0.08)'
                       : 'rgba(var(--color-accent-400), 0.05)'
                     : g.cardBg,
-                  borderColor: isBestValue
-                    ? BEST_VALUE_BORDER
-                    : isSelected
-                      ? 'rgb(var(--color-accent-400))'
+                  // BlackBird: выбор важнее отметки — у выбранного контур акцента, плашка «Выгодно» остаётся
+                  borderColor: isSelected
+                    ? 'rgb(var(--color-accent-400))'
+                    : isBestValue
+                      ? BEST_VALUE_BORDER
                       : g.cardBorder,
                   // Выбранный выгодный вариант несёт обе метки: жёлтый контур
                   // снаружи и контур выбора внутри — иначе подсказка пропадала
                   // ровно тогда, когда человек ей последовал.
-                  boxShadow:
-                    isSelected && isBestValue
-                      ? 'inset 0 0 0 2px rgb(var(--color-accent-400))'
-                      : undefined,
+                  boxShadow: undefined,
                 }}
               >
                 {isBestValue && <BestValueBadge className="mb-2" />}

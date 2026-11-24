@@ -98,7 +98,7 @@ it.each(['grid', 'lite', 'form'] as const)(
     const unlimited = {
       ...tariff,
       traffic_limit_gb: 0,
-      traffic_limit_label: '♾️ Безлимит',
+      traffic_limit_label: 'Безлимит',
       is_unlimited_traffic: true,
     };
     for (const [language, expected] of [

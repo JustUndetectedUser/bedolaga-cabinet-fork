@@ -292,15 +292,13 @@ html.bb-leaving #root {
 /* Включённый переключатель (отзыв 20.11): дорожка — цвет акцента (#F5F5F5 у палитры BlackBird), ручка — bg-white,
    вместе одна белая капсула. У включённого (aria-checked, дорожка bg-accent-500: Switch из primitives, admin/Toggle и
    самодельные в формах: дорожка — сама кнопка, ручка — span в ней; admin/Toggle: дорожка — div в кнопке, ручка — div в
-   ней) ручка тёмная: в тёмной теме цвета фона, в светлой — цвета текста. */
+   ней) ручка — цвета фона страницы в обеих темах: дорожка — акцент, а он всегда контрастен фону. До 24.11 в светлой
+   теме ручка была цвета текста — того же, что акцент светлой палитры (rgb(17,24,39)), и на дорожке не была видна. */
 .dark [role="switch"][aria-checked="true"][class*="bg-accent-500"] > span,
-.dark [role="switch"][aria-checked="true"] > [class*="bg-accent-500"] > div {
-  background-color: rgb(var(--color-dark-950));
-}
-
+.dark [role="switch"][aria-checked="true"] > [class*="bg-accent-500"] > div,
 .light [role="switch"][aria-checked="true"][class*="bg-accent-500"] > span,
 .light [role="switch"][aria-checked="true"] > [class*="bg-accent-500"] > div {
-  background-color: rgb(var(--color-dark-50));
+  background-color: rgb(var(--color-dark-950));
 }
 
 /* Загрузка разделов (src/components/blackbird/pageReveal.ts, решение владельца 20.11): пока данных нет — только шапка

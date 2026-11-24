@@ -90,7 +90,7 @@ afterEach(() => {
 // Признак выбора у покупки — заливка accent; рамка выбранного варианта
 // остаётся жёлтой, если оператор отметил его выгодным.
 const SELECTED = 'bg-accent-500/10';
-const BEST_VALUE_RING = 'border-urgent-400';
+const BEST_VALUE_RING = 'border-dark-400';
 // Продление красит рамку и заливку инлайновым стилем, а не классом.
 const SELECTED_BORDER = '--color-accent-400';
 
@@ -127,8 +127,10 @@ describe('покупка: выбранный по умолчанию перио�
     ]);
 
     const card = harness.cardFor('12 месяцев');
-    expect(card.className).toContain(BEST_VALUE_RING);
+    // BlackBird (24.11.2026): у выбранного — контур акцента, отметка «Выгодно» остаётся плашкой внутри карточки
+    expect(card.className).not.toContain(BEST_VALUE_RING);
     expect(card.className).toContain(SELECTED);
+    expect(card.textContent).toContain(ru('subscription.bestValue'));
   });
 
   it('итог внизу считает выбранный выгодный период, а не первый', async () => {
@@ -162,7 +164,8 @@ describe('продление: выбранный по умолчанию пер�
 
     // Рамка выбранного выгодного остаётся жёлтой, выбор виден заливкой и
     // внутренним контуром — обе метки сразу.
-    expect(cardFor(360).style.borderColor).toContain('--color-urgent-400');
+    // BlackBird (24.11.2026): выбор важнее отметки — контур акцента, плашка «Выгодно» на месте (findByText выше)
+    expect(cardFor(360).style.borderColor).toContain('--color-accent-400');
     expect(cardFor(360).style.background).toContain(SELECTED_BORDER);
     expect(cardFor(30).style.background).not.toContain(SELECTED_BORDER);
   });

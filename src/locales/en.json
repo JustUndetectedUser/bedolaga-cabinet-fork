@@ -779,7 +779,7 @@
         "year": "yearly"
       },
       "autopayHint": "Your subscription will be charged automatically via SBP, no card required",
-      "purchaseButton": "⚡ Subscribe with SBP auto-payment",
+      "purchaseButton": "Subscribe with SBP auto-payment",
       "purchaseHint": "First charge confirms the binding in your bank app; renewals are charged automatically per the tariff cadence."
     },
     "lavaRecurring": {
@@ -806,7 +806,7 @@
         "year": "yearly"
       },
       "autopayHint": "The subscription will renew automatically via Lava",
-      "purchaseButton": "⚡ Subscribe with Lava auto-renewal",
+      "purchaseButton": "Subscribe with Lava auto-renewal",
       "purchaseHint": "The first invoice is paid via a Lava link; renewals are then charged automatically on the product’s schedule."
     },
     "backToList": "Back to subscriptions",
@@ -860,7 +860,7 @@
         "yearly": "yearly"
       },
       "autopayHint": "Your subscription will renew automatically via Cashera",
-      "purchaseButton": "⚡ Subscribe with Cashera auto-pay",
+      "purchaseButton": "Subscribe with Cashera auto-pay",
       "purchaseHint": "Confirm auto-charges via the Cashera link; renewals are then charged automatically."
     }
   },
@@ -7749,7 +7749,7 @@
     "copyMessage": "Copy message",
     "shareToastCopied": "Message copied",
     "qrHint": "Scan to activate the gift",
-    "scanButton": "📷 Scan QR",
+    "scanButton": "Scan QR",
     "scanInProgress": "Scanning…",
     "scanCancel": "Stop scanning",
     "scanDescription": "Point the camera at the gift QR code",
@@ -7904,7 +7904,7 @@
   },
   "blackbird": {
     "offer": {
-      "button": "🎁 A special plan is available to you",
+      "button": "A special plan is available to you",
       "pending": "⏳ Request under review",
       "retry": "Something went wrong, please try again",
       "gone": "This offer is no longer available"

@@ -52,7 +52,7 @@ async function renderCard() {
   return { ...view, container: view.getByTestId('card') };
 }
 
-const BUTTON = '🎁 Вам доступен уникальный тариф';
+const BUTTON = 'Вам доступен уникальный тариф';
 const RETRY = 'Не получилось, попробуйте ещё раз';
 const GONE = 'Предложение больше не доступно';
 
@@ -71,7 +71,7 @@ describe('PromoOfferCard', () => {
     expect(await screen.findByText('Тариф Про')).toBeTruthy();
     expect(screen.getByText('Скидка для вас')).toBeTruthy();
     fetchOffers.mockResolvedValue([{ ...open, state: 'pending' }]);
-    fireEvent.click(screen.getByRole('button', { name: '🎁 Вам доступен уникальный тариф' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вам доступен уникальный тариф' }));
     await waitFor(() => expect(claimOffer).toHaveBeenCalledWith('a'));
     expect(await screen.findByText('⏳ Заявка на рассмотрении')).toBeTruthy();
     expect(fetchOffers).toHaveBeenCalledTimes(2);

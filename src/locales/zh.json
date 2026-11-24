@@ -670,7 +670,7 @@
         "year": "每年"
       },
       "autopayHint": "您的订阅将通过 SBP 自动扣款，无需保存银行卡",
-      "purchaseButton": "⚡ 通过SBP自动扣款订阅",
+      "purchaseButton": "通过SBP自动扣款订阅",
       "purchaseHint": "首次扣款即在银行应用中确认绑定；续费将按资费周期自动扣款。"
     },
     "lavaRecurring": {
@@ -697,7 +697,7 @@
         "year": "每年"
       },
       "autopayHint": "订阅将通过 Lava 自动续订",
-      "purchaseButton": "⚡ 使用 Lava 自动续订下单",
+      "purchaseButton": "使用 Lava 自动续订下单",
       "purchaseHint": "首期账单通过 Lava 链接支付；之后按产品周期自动扣款续订。"
     },
     "backToList": "返回订阅列表",
@@ -771,7 +771,7 @@
         "yearly": "每年"
       },
       "autopayHint": "订阅将通过 Cashera 自动续费",
-      "purchaseButton": "⚡ 使用 Cashera 自动付款订阅",
+      "purchaseButton": "使用 Cashera 自动付款订阅",
       "purchaseHint": "通过 Cashera 链接确认自动扣款，之后续费将自动扣款。"
     }
   },
@@ -7208,7 +7208,7 @@
     "tabMyGifts": "我的礼物",
     "unlimitedTraffic": "无限流量",
     "qrHint": "扫描以激活礼物",
-    "scanButton": "📷 扫描二维码",
+    "scanButton": "扫描二维码",
     "scanInProgress": "扫描中…",
     "scanCancel": "停止扫描",
     "scanDescription": "将摄像头对准礼物二维码",

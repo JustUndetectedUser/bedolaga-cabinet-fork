@@ -144,7 +144,7 @@ export function TrafficTopupSheet({
               >
                 <div className="text-base font-semibold text-dark-100 sm:text-lg">
                   {pkg.is_unlimited
-                    ? '♾️ ' + t('subscription.additionalOptions.unlimited')
+                    ? t('subscription.additionalOptions.unlimited')
                     : `${pkg.gb} ${t('common.units.gb')}`}
                 </div>
                 {pkg.discount_percent != null && pkg.discount_percent > 0 && (

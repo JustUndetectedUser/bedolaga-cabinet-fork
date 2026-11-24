@@ -12,15 +12,17 @@ import { describe, expect, it } from 'vitest';
 const css = readFileSync(join(import.meta.dirname, '../../styles/blackbird.css'), 'utf-8');
 
 describe('blackbird.css: ручка включённого переключателя', () => {
-  it('тёмная тема: цвет фона страницы', () => {
+  // 24.11.2026: в светлой теме ручка была цвета текста (--color-dark-50) — того же, что акцент светлой палитры,
+  // и на дорожке её не было видно. Теперь в обеих темах ручка — цвета фона страницы.
+  it('обе темы: цвет фона страницы, одним правилом', () => {
     expect(css).toMatch(
-      /\.dark \[role="switch"\]\[aria-checked="true"\]\[class\*="bg-accent-500"\] > span,\s*\.dark \[role="switch"\]\[aria-checked="true"\] > \[class\*="bg-accent-500"\] > div \{\s*background-color: rgb\(var\(--color-dark-950\)\);\s*\}/,
+      /\.dark \[role="switch"\]\[aria-checked="true"\]\[class\*="bg-accent-500"\] > span,\s*\.dark \[role="switch"\]\[aria-checked="true"\] > \[class\*="bg-accent-500"\] > div,\s*\.light \[role="switch"\]\[aria-checked="true"\]\[class\*="bg-accent-500"\] > span,\s*\.light \[role="switch"\]\[aria-checked="true"\] > \[class\*="bg-accent-500"\] > div \{\s*background-color: rgb\(var\(--color-dark-950\)\);\s*\}/,
     );
   });
 
-  it('светлая тема: цвет текста', () => {
-    expect(css).toMatch(
-      /\.light \[role="switch"\]\[aria-checked="true"\]\[class\*="bg-accent-500"\] > span,\s*\.light \[role="switch"\]\[aria-checked="true"\] > \[class\*="bg-accent-500"\] > div \{\s*background-color: rgb\(var\(--color-dark-50\)\);\s*\}/,
+  it('ручка нигде не красится в цвет текста', () => {
+    expect(css).not.toMatch(
+      /\[role="switch"\][^{]*\{\s*background-color: rgb\(var\(--color-dark-50\)\)/,
     );
   });
 });
