@@ -193,7 +193,7 @@ function TariffCard({
           <p className="text-base font-bold text-dark-50">{tariff.name}</p>
           <p
             className={cn(
-              'text-xs font-medium uppercase tracking-wider transition-colors',
+              'text-xs font-medium transition-colors',
               isSelected ? 'text-accent-400' : 'text-dark-400',
             )}
           >
@@ -570,9 +570,7 @@ function BuyTabContent({
       {/* Tariff selection */}
       {showTariffCards && (
         <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dark-400">
-            {t('gift.selectTariff')}
-          </h2>
+          <h2 className="mb-3 text-xs font-semibold text-dark-400">{t('gift.selectTariff')}</h2>
           <div role="radiogroup" aria-label={t('gift.chooseTariff')} className="space-y-2">
             {config.tariffs.map((tariff) => (
               <TariffCard
@@ -625,9 +623,7 @@ function BuyTabContent({
       {/* Period selection */}
       {periodsForDisplay.length > 0 && (
         <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dark-400">
-            {t('gift.selectPeriod')}
-          </h2>
+          <h2 className="mb-3 text-xs font-semibold text-dark-400">{t('gift.selectPeriod')}</h2>
           <div className="space-y-2">
             {periodsForDisplay.map((period) => (
               <PeriodCard
@@ -643,9 +639,7 @@ function BuyTabContent({
 
       {/* Payment mode toggle */}
       <div>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dark-400">
-          {t('gift.paymentMode')}
-        </h2>
+        <h2 className="mb-3 text-xs font-semibold text-dark-400">{t('gift.paymentMode')}</h2>
         <PaymentModeToggle
           mode={paymentMode}
           onToggle={setPaymentMode}
@@ -1092,7 +1086,7 @@ function SentGiftCard({ gift }: { gift: SentGift }) {
           <button
             type="button"
             onClick={handleShare}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent-500 px-4 py-3 text-sm font-bold uppercase tracking-wider text-on-accent transition-colors hover:bg-accent-400 active:scale-[0.98]"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent-500 px-4 py-3 text-sm font-bold text-on-accent transition-colors hover:bg-accent-400 active:scale-[0.98]"
           >
             <ExportIcon className="h-4 w-4" />
             {t('gift.shareGift')}
@@ -1240,9 +1234,7 @@ function MyGiftsTabContent() {
       {/* Active gifts (awaiting activation) */}
       {hasActive && (
         <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dark-400">
-            {t('gift.activeGiftsTitle')}
-          </h2>
+          <h2 className="mb-3 text-xs font-semibold text-dark-400">{t('gift.activeGiftsTitle')}</h2>
           <div className="space-y-3">
             {activeGifts.map((gift) => (
               <SentGiftCard key={gift.token} gift={gift} />
@@ -1254,7 +1246,7 @@ function MyGiftsTabContent() {
       {/* Activated gifts */}
       {hasActivated && (
         <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dark-400">
+          <h2 className="mb-3 text-xs font-semibold text-dark-400">
             {t('gift.activatedGiftsTitle')}
           </h2>
           <div className="space-y-3">
@@ -1268,7 +1260,7 @@ function MyGiftsTabContent() {
       {/* Received gifts */}
       {hasReceived && (
         <div>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-dark-400">
+          <h2 className="mb-3 text-xs font-semibold text-dark-400">
             {t('gift.receivedGiftsTitle')}
           </h2>
           <div className="space-y-3">

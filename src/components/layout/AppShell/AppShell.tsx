@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router';
+import { isNarrowPage } from '@/components/blackbird/narrowPage';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -283,7 +284,11 @@ export function AppShell({ children }: AppShellProps) {
       {/* Боковые отступы не меньше вырезов (альбомная ориентация iPhone); снизу —
           просвет под панелью: фиксированные 112px в standalone iOS не хватало,
           и низ контента уходил под неё. */}
-      <main className="mx-auto max-w-6xl py-6 pb-[calc(var(--mobile-nav-clearance)+0.5rem)] pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] lg:px-6 lg:pb-8">
+      <main
+        // BlackBird: узкая колонка экранов одного действия (blackbird/narrowPage.ts, blackbird.css)
+        data-bb-narrow={isNarrowPage(location.pathname) || undefined}
+        className="mx-auto max-w-6xl py-6 pb-[calc(var(--mobile-nav-clearance)+0.5rem)] pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] lg:px-6 lg:pb-8"
+      >
         {children}
       </main>
 

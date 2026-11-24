@@ -418,3 +418,25 @@ html.bb-zoom a > div.absolute.inset-0.rounded-2xl {
 .font-bold {
   font-weight: 600;
 }
+
+/* Ширина колонки (ревью unslop, 24.11.2026): экраны одного действия — 640 px по центру, метку data-bb-narrow ставит
+   оболочка (AppShell, blackbird/narrowPage.ts). Раньше подписка и сумма пополнения были 512 px, подарки 640 px,
+   продление и покупка 1104 px: при переходе между ними содержимое прыгало. max-w-lg — корень SubscriptionLite и
+   TopUpAmount (их собственные 512 px). */
+main[data-bb-narrow] > * {
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+main[data-bb-narrow] .max-w-lg {
+  max-width: 640px;
+}
+
+/* Мелкий текст (ревью unslop, 24.11.2026): 10 и 11 px в upstream (135 мест) — 12 px, строка 16 px. */
+.text-\[10px\],
+.text-\[11px\],
+.text-2xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
